@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { GameProvider, useGame } from '@/lib/game/GameContext';
+import { useAudio } from '@/lib/game/useAudio';
+import { EVENT_BGM_MAP, SCREEN_BGM_MAP } from '@/lib/game/bgmManager';
 import GameSetup from '@/components/game/GameSetup';
 import Roulette from '@/components/game/Roulette';
 import DestinationRoulette from '@/components/game/DestinationRoulette';
@@ -10,6 +12,8 @@ import ArrivalSelection from '@/components/game/ArrivalSelection';
 import WorldMap from '@/components/game/WorldMap';
 import PointsDisplay from '@/components/game/PointsDisplay';
 import GameProgress from '@/components/game/GameProgress';
+import AudioControls from '@/components/game/AudioControls';
+import AudioInitializer from '@/components/game/AudioInitializer';
 import {
   AttractionEvent,
   StarEvent,
@@ -57,6 +61,8 @@ function GameContent() {
     setError,
   } = useGame();
 
+  const { playBGM, stopBGM, playSFX } = useAudio();
+
   const [airports, setAirports] = useState<Airport[]>([]);
   const [gameState, setGameState] = useState<'setup' | 'playing' | 'completed'>('setup');
   const [screenState, setScreenState] = useState<
@@ -75,6 +81,7 @@ function GameContent() {
   const [arrivalGourmet, setArrivalGourmet] = useState<Gourmet | null>(null);
   const [visitedAirportIds, setVisitedAirportIds] = useState<string[]>([]);
   const [startingAirportId, setStartingAirportId] = useState<string | null>(null);
+  const [audioInitialized, setAudioInitialized] = useState(false);
 
   // 空港データ取得
   useEffect(() => {
@@ -465,6 +472,29 @@ function GameContent() {
     }
   }, [gameSession]);
 
+  // BGM管理 - 画面状態に応じてBGMを切り替え
+  useEffect(() => {
+    if (gameState !== 'playing') {
+      stopBGM();
+      return;
+    }
+
+    // イベント画面の場合は、イベントタイプに応じたBGMを再生
+    if (screenState === 'events' && pendingEvents.length > 0) {
+      const currentEvent = pendingEvents[currentEventIndex];
+      const bgmType = EVENT_BGM_MAP[currentEvent.type] || 'cheerful';
+      playBGM(bgmType);
+    } else {
+      // その他の画面状態に応じたBGMを再生
+      const bgmType = SCREEN_BGM_MAP[screenState] || 'none';
+      if (bgmType === 'none') {
+        stopBGM();
+      } else {
+        playBGM(bgmType);
+      }
+    }
+  }, [screenState, gameState, pendingEvents, currentEventIndex, playBGM, stopBGM]);
+
   if (gameState === 'setup') {
     return <GameSetup airports={airports} onStart={handleStartGame} />;
   }
@@ -508,6 +538,9 @@ function GameContent() {
 
   return (
     <div className="game-screen safe-area">
+      {/* オーディオ初期化プロンプト */}
+      {!audioInitialized && <AudioInitializer onInitialized={() => setAudioInitialized(true)} />}
+
       {/* ヘッダー: ポイントと進行状況 */}
       <div className="p-4 bg-white dark:bg-gray-900 shadow-md">
         <div className="mobile-container">
@@ -522,6 +555,7 @@ function GameContent() {
               totalDays={gameSession.total_days}
               currentLocation={currentAirport.name_ja || currentAirport.name}
             />
+            <AudioControls />
           </div>
         </div>
       </div>
