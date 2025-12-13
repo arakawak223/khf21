@@ -1,0 +1,27 @@
+{
+  "name": "世界旅行すごろくゲーム",
+  "short_name": "世界旅ゲーム",
+  "description": "ルーレットを回して飛行機と豪華客船で世界を旅するすごろくゲーム",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0070f3",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "lang": "ja",
+  "dir": "ltr"
+}
