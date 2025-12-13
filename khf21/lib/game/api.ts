@@ -13,6 +13,7 @@ import type {
   TroubleResolution,
   GamePeriodSetting,
   GameSession,
+  EncouragementGratitudeScenario,
 } from '@/types/database.types';
 
 const supabase = createClient();
@@ -343,4 +344,51 @@ export async function createEventHistory(
 
   if (error) throw error;
   return data;
+}
+
+// 元気づけ/感謝シナリオデータ取得
+export async function getRandomEncouragementGratitudeScenario(
+  category?: 'gratitude_happy' | 'gratitude_help' | 'encouragement'
+) {
+  let query = supabase
+    .from('encouragement_gratitude_scenarios')
+    .select('*');
+
+  if (category) {
+    query = query.eq('category', category);
+  }
+
+  const { data, error } = await query.limit(100);
+
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+
+  const randomIndex = Math.floor(Math.random() * data.length);
+  return data[randomIndex] as EncouragementGratitudeScenario;
+}
+
+// カテゴリー別の元気づけ/感謝シナリオ取得
+export async function getEncouragementGratitudeScenariosByCategory(
+  category: 'gratitude_happy' | 'gratitude_help' | 'encouragement'
+) {
+  const { data, error } = await supabase
+    .from('encouragement_gratitude_scenarios')
+    .select('*')
+    .eq('category', category);
+
+  if (error) throw error;
+  return data as EncouragementGratitudeScenario[];
+}
+
+// サブカテゴリー別の元気づけ/感謝シナリオ取得
+export async function getEncouragementGratitudeScenariosBySubcategory(
+  subcategory: string
+) {
+  const { data, error } = await supabase
+    .from('encouragement_gratitude_scenarios')
+    .select('*')
+    .eq('subcategory', subcategory);
+
+  if (error) throw error;
+  return data as EncouragementGratitudeScenario[];
 }

@@ -493,6 +493,53 @@ export interface Database {
           updated_at?: string
         }
       }
+      encouragement_gratitude_scenarios: {
+        Row: {
+          id: string
+          category: 'gratitude_happy' | 'gratitude_help' | 'encouragement'
+          subcategory: string | null
+          trigger_type: 'phone' | 'email' | 'message' | 'diary' | 'photo' | 'letter' | 'encounter' | 'video_call'
+          trigger_from: string | null
+          travel_situation: string
+          background_story: string
+          message_text: string
+          location_context: string | null
+          impressed_points: number
+          giver_points: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          category: 'gratitude_happy' | 'gratitude_help' | 'encouragement'
+          subcategory?: string | null
+          trigger_type: 'phone' | 'email' | 'message' | 'diary' | 'photo' | 'letter' | 'encounter' | 'video_call'
+          trigger_from?: string | null
+          travel_situation: string
+          background_story: string
+          message_text: string
+          location_context?: string | null
+          impressed_points?: number
+          giver_points?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          category?: 'gratitude_happy' | 'gratitude_help' | 'encouragement'
+          subcategory?: string | null
+          trigger_type?: 'phone' | 'email' | 'message' | 'diary' | 'photo' | 'letter' | 'encounter' | 'video_call'
+          trigger_from?: string | null
+          travel_situation?: string
+          background_story?: string
+          message_text?: string
+          location_context?: string | null
+          impressed_points?: number
+          giver_points?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
       game_period_settings: {
         Row: {
           id: string
@@ -703,6 +750,7 @@ export type Trouble = Tables<'troubles'>
 export type TroubleResolution = Tables<'trouble_resolutions'>
 export type ImpressedScenario = Tables<'impressed_scenarios'>
 export type GiverScenario = Tables<'giver_scenarios'>
+export type EncouragementGratitudeScenario = Tables<'encouragement_gratitude_scenarios'>
 export type GamePeriodSetting = Tables<'game_period_settings'>
 export type GameSession = Tables<'game_sessions'>
 export type GameProgress = Tables<'game_progress'>
