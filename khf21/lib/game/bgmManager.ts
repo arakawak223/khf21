@@ -397,6 +397,7 @@ export const EVENT_BGM_MAP: Record<string, BGMScene> = {
   gourmet: 'calm',          // グルメマス - 癒し
   giver: 'calm',            // 人マス - 癒し
   trouble: 'trouble',       // トラブルマス - 暗く重い
+  encouragement_gratitude: 'calm', // 元気づけ/感謝マス - 癒し
 };
 
 /**

@@ -21,6 +21,7 @@ import {
   GourmetEvent,
   TroubleEvent,
   GiverEvent,
+  EncouragementGratitudeEvent,
 } from '@/components/game/events';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,11 +44,10 @@ import {
 import {
   calculateDistance,
   calculateStayDays,
-  selectRandomDestination,
   calculateRouteSpaces,
 } from '@/lib/game/movement';
 import { createClient } from '@/lib/supabase/client';
-import type { Airport, Attraction, Star, Art, Gourmet, Trouble, GiverScenario } from '@/types/database.types';
+import type { Airport, Attraction, Star, Art, Gourmet, Trouble, GiverScenario, EncouragementGratitudeScenario } from '@/types/database.types';
 
 function GameContent() {
   const {
@@ -61,7 +61,7 @@ function GameContent() {
     setError,
   } = useGame();
 
-  const { playBGM, stopBGM, playSFX } = useAudio();
+  const { playBGM, stopBGM } = useAudio();
 
   const [airports, setAirports] = useState<Airport[]>([]);
   const [gameState, setGameState] = useState<'setup' | 'playing' | 'completed'>('setup');
@@ -708,6 +708,13 @@ function GameContent() {
               isOpen={true}
               onClose={handleGiverEventClose}
               scenario={currentEvent.data as GiverScenario}
+            />
+          )}
+          {currentEvent.type === 'encouragement_gratitude' && (
+            <EncouragementGratitudeEvent
+              isOpen={true}
+              onClose={handleEventClose}
+              scenario={currentEvent.data as EncouragementGratitudeScenario}
             />
           )}
         </>

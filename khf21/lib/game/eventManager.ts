@@ -6,6 +6,7 @@ import {
   getRandomStar,
   getRandomTrouble,
   getTroubleResolution,
+  getRandomEncouragementGratitudeScenario,
 } from './api';
 import type {
   Attraction,
@@ -15,13 +16,14 @@ import type {
   Trouble,
   TroubleResolution,
   GiverScenario,
+  EncouragementGratitudeScenario,
 } from '@/types/database.types';
 
-export type EventType = 'attraction' | 'star' | 'art' | 'gourmet' | 'trouble' | 'giver';
+export type EventType = 'attraction' | 'star' | 'art' | 'gourmet' | 'trouble' | 'giver' | 'encouragement_gratitude';
 
 export interface GameEvent {
   type: EventType;
-  data: Attraction | Star | Art | Gourmet | Trouble | GiverScenario;
+  data: Attraction | Star | Art | Gourmet | Trouble | GiverScenario | EncouragementGratitudeScenario;
   troubleResolution?: TroubleResolution;
 }
 
@@ -67,6 +69,14 @@ export async function generateTravelEvents(): Promise<GameEvent[]> {
   if (shouldEventOccur(EVENT_PROBABILITY.GIVER)) {
     const giverScenario = generateGiverScenario();
     events.push({ type: 'giver', data: giverScenario });
+  }
+
+  // 元気づけ/感謝イベント（40%の確率）
+  if (shouldEventOccur(0.4)) {
+    const scenario = await getRandomEncouragementGratitudeScenario();
+    if (scenario) {
+      events.push({ type: 'encouragement_gratitude', data: scenario });
+    }
   }
 
   return events;
@@ -184,6 +194,11 @@ export function calculateEventPoints(event: GameEvent, giverPoints?: number): {
       break;
     case 'giver':
       giver = giverPoints || 0;
+      break;
+    case 'encouragement_gratitude':
+      const scenario = event.data as EncouragementGratitudeScenario;
+      impressed = scenario.impressed_points || 0;
+      giver = scenario.giver_points || 0;
       break;
   }
 
