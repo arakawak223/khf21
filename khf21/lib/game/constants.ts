@@ -134,15 +134,59 @@ export const AUDIO_TYPE = {
   TROUBLE: 'trouble',
 } as const;
 
-// ゲーム期間設定
+// BGM URL定義
+export const BGM_URLS = {
+  // ゲーム開始時のBGM（プレイヤーが選択）
+  GAME_START: [
+    '/audio/bgm/maou_game_field01.mp3',
+    '/audio/bgm/maou_game_town03.mp3',
+    '/audio/bgm/maou_game_field04.mp3',
+  ],
+  // 目的地決定ルーレット
+  DESTINATION_ROULETTE: [
+    '/audio/bgm/maou_game_vehicle03.mp3',
+  ],
+  // マスルーレット（サイコロ）
+  DICE_ROULETTE: [
+    '/audio/bgm/maou_game_casino01.mp3',
+  ],
+  // 飛行機がマスを進む
+  FLYING: [
+    '/audio/bgm/maou_game_vehicle01.mp3',
+  ],
+  // トラブル発生
+  TROUBLE: [
+    '/audio/bgm/ms/maou_game_theme08.mp3',
+    '/audio/bgm/ms/maou_game_village08.mp3',
+    '/audio/bgm/ms/maou_game_town08.mp3',
+    '/audio/bgm/ms/maou_game_dangeon19.mp3',
+  ],
+  // 悲しい場面
+  SAD: [
+    '/audio/bgm/ms/maou_game_theme12.mp3',
+    '/audio/bgm/ms/maou_game_dangeon03.mp3',
+  ],
+  // 温かい場面
+  WARM: [
+    '/audio/bgm/me/maou_game_village10.mp3',
+    '/audio/bgm/me/maou_game_village04.mp3',
+  ],
+  // 明るい場面
+  BRIGHT: [
+    '/audio/bgm/me/maou_game_village03b.mp3',
+    '/audio/bgm/me/maou_game_town13.mp3',
+    '/audio/bgm/me/maou_game_town01.mp3',
+    '/audio/bgm/me/maou_game_town24.mp3',
+  ],
+} as const;
+
+// ゲーム期間設定（5パターン固定）
 export const GAME_PERIODS = [
   { value: '1week', label: '1週間', days: 7 },
   { value: '2weeks', label: '2週間', days: 14 },
   { value: '1month', label: '1か月', days: 30 },
-  { value: '2months', label: '2か月', days: 60 },
   { value: '3months', label: '3か月', days: 90 },
   { value: '6months', label: '6か月', days: 180 },
-  { value: '1year', label: '1年', days: 365 },
 ] as const;
 
 // アニメーション時間（ミリ秒）

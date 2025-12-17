@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { GAME_PERIODS } from '@/lib/game/constants';
+import { GAME_PERIODS, BGM_URLS } from '@/lib/game/constants';
+import { getBGMManager } from '@/lib/game/bgmManager';
 import type { Airport } from '@/types/database.types';
 
 interface GameSetupProps {
@@ -12,11 +13,19 @@ interface GameSetupProps {
   onStart: (periodDays: number, periodName: string, startingAirportId: string, nickname?: string) => void;
 }
 
+// BGM選択肢の情報
+const BGM_OPTIONS = [
+  { url: BGM_URLS.GAME_START[0], name: 'フィールド音楽', description: '広大な大地を旅するイメージ' },
+  { url: BGM_URLS.GAME_START[1], name: 'タウン音楽', description: '街を散策するイメージ' },
+  { url: BGM_URLS.GAME_START[2], name: 'フィールド音楽2', description: '爽やかな冒険のイメージ' },
+];
+
 export default function GameSetup({ airports, onStart }: GameSetupProps) {
   const [selectedPeriod, setSelectedPeriod] = useState('1week');
   const [selectedAirportId, setSelectedAirportId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [nickname, setNickname] = useState('');
+  const [selectedBGM, setSelectedBGM] = useState(BGM_OPTIONS[0].url);
 
   const selectedPeriodData = GAME_PERIODS.find((p) => p.value === selectedPeriod);
 
@@ -33,7 +42,26 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
   });
 
   const handleStart = () => {
-    if (!selectedAirportId || !selectedPeriodData) return;
+    console.log('=== handleStart called ===');
+    console.log('selectedAirportId:', selectedAirportId);
+    console.log('selectedPeriodData:', selectedPeriodData);
+    console.log('selectedBGM:', selectedBGM);
+
+    if (!selectedAirportId || !selectedPeriodData) {
+      console.error('Cannot start: missing airportId or periodData');
+      return;
+    }
+
+    // 選択されたBGMを保存
+    try {
+      const bgmManager = getBGMManager();
+      bgmManager.setStartBGM(selectedBGM);
+      console.log('BGM saved successfully');
+    } catch (error) {
+      console.error('Error saving BGM:', error);
+    }
+
+    console.log('Calling onStart...');
     onStart(selectedPeriodData.days, selectedPeriodData.label, selectedAirportId, nickname.trim() || undefined);
   };
 
@@ -66,6 +94,39 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               地図上で表示されます（最大20文字）
+            </p>
+          </div>
+
+          {/* BGM選択 */}
+          <div>
+            <Label className="text-base font-semibold mb-3 block">
+              🎵 ゲーム中のBGMを選択
+            </Label>
+            <div className="grid grid-cols-1 gap-3">
+              {BGM_OPTIONS.map((bgm) => (
+                <button
+                  key={bgm.url}
+                  onClick={() => setSelectedBGM(bgm.url)}
+                  className={`
+                    touch-target p-4 rounded-lg border-2 transition-all text-left
+                    ${
+                      selectedBGM === bgm.url
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-purple-300'
+                    }
+                  `}
+                >
+                  <p className="font-bold text-gray-800 dark:text-gray-200">
+                    {bgm.name}
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    {bgm.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              各シーンに応じて自動的にBGMが切り替わります
             </p>
           </div>
 

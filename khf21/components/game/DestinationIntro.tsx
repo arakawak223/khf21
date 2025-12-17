@@ -33,7 +33,7 @@ export default function DestinationIntro({
         <div className="p-6 space-y-4">
           {/* ヘッダー */}
           <div className="text-center space-y-2">
-            <div className="text-6xl mb-2">{airport.icon || '✈️'}</div>
+            <div className="text-6xl mb-2">✈️</div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
               {airport.city}
             </h2>

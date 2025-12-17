@@ -51,11 +51,16 @@ export async function generateArrivalEvents(): Promise<GameEvent[]> {
 export async function generateTravelEvents(): Promise<GameEvent[]> {
   const events: GameEvent[] = [];
 
-  // トラブルイベント（20%の確率）
-  if (shouldEventOccur(EVENT_PROBABILITY.TROUBLE)) {
+  // 【一時的に無効化】基本機能のテスト中のため、イベントを発生させない
+  // TODO: 基本機能が安定したら再度有効化する
+
+  /*
+  const eventRoll = Math.random();
+
+  if (eventRoll < 0.15) {
+    // 15%: トラブルイベント
     const trouble = await getRandomTrouble();
     if (trouble) {
-      // トラブル解消も取得
       const resolution = await getTroubleResolution(trouble.id);
       events.push({
         type: 'trouble',
@@ -63,21 +68,18 @@ export async function generateTravelEvents(): Promise<GameEvent[]> {
         troubleResolution: resolution || undefined,
       });
     }
-  }
-
-  // 喜び提供イベント（50%の確率）
-  if (shouldEventOccur(EVENT_PROBABILITY.GIVER)) {
+  } else if (eventRoll < 0.40) {
+    // 25%: 喜び提供イベント
     const giverScenario = generateGiverScenario();
     events.push({ type: 'giver', data: giverScenario });
-  }
-
-  // 元気づけ/感謝イベント（40%の確率）
-  if (shouldEventOccur(0.4)) {
+  } else if (eventRoll < 0.60) {
+    // 20%: 元気づけ/感謝イベント
     const scenario = await getRandomEncouragementGratitudeScenario();
     if (scenario) {
       events.push({ type: 'encouragement_gratitude', data: scenario });
     }
   }
+  */
 
   return events;
 }

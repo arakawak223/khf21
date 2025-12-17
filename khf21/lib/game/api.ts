@@ -214,7 +214,6 @@ export async function createGameSession(
       current_airport_id: startingAirportId,
       current_location_type: 'airport',
       player_nickname: playerNickname || 'プレイヤー1',
-      player_color: 'red', // デフォルトは赤
     })
     .select()
     .single();

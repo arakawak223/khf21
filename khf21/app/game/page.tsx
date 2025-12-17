@@ -5,7 +5,7 @@ import { GameProvider, useGame } from '@/lib/game/GameContext';
 import { useAudio } from '@/lib/game/useAudio';
 import { EVENT_BGM_MAP, SCREEN_BGM_MAP } from '@/lib/game/bgmManager';
 import GameSetup from '@/components/game/GameSetup';
-import Roulette from '@/components/game/Roulette';
+import Dice3D from '@/components/game/Dice3D';
 import DestinationRoulette from '@/components/game/DestinationRoulette';
 import DestinationIntro from '@/components/game/DestinationIntro';
 import ArrivalSelection from '@/components/game/ArrivalSelection';
@@ -31,9 +31,6 @@ import {
   getAttractionsByCountry,
   getArtsByCity,
   getGourmetByCountry,
-  getRandomAttraction,
-  getRandomArt,
-  getRandomGourmet,
 } from '@/lib/game/api';
 import {
   generateArrivalEvents,
@@ -61,7 +58,7 @@ function GameContent() {
     setError,
   } = useGame();
 
-  const { playBGM, stopBGM } = useAudio();
+  const { playBGM, stopBGM, playDiceSteps, playFanfare } = useAudio();
 
   const [airports, setAirports] = useState<Airport[]>([]);
   const [gameState, setGameState] = useState<'setup' | 'playing' | 'completed'>('setup');
@@ -82,6 +79,7 @@ function GameContent() {
   const [visitedAirportIds, setVisitedAirportIds] = useState<string[]>([]);
   const [startingAirportId, setStartingAirportId] = useState<string | null>(null);
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [showGameMenu, setShowGameMenu] = useState(false);
 
   // 空港データ取得
   useEffect(() => {
@@ -111,9 +109,14 @@ function GameContent() {
   }, [setLoading, setError]);
 
   // 既存のアクティブなゲームセッションをチェック
+  // 開発中は無効化してGameSetup画面を常に表示
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
+        // TODO: 開発中は無効化
+        return;
+
+        /*
         const supabase = createClient();
         const {
           data: { user },
@@ -131,6 +134,7 @@ function GameContent() {
             setCurrentAirport(activeSession.current_airport as Airport);
           }
         }
+        */
       } catch (err) {
         console.error('Failed to check active session:', err);
       }
@@ -191,47 +195,32 @@ function GameContent() {
       setStartingAirportId(startingAirportId);
       setVisitedAirportIds([startingAirportId]);
 
-      // ゲストの場合はローカルでセッションを管理
-      if (!user) {
-        // ゲストセッションを作成（DBに保存しない）
-        const guestSession: any = {
-          id: 'guest-session-' + Date.now(),
-          user_id: userId,
-          period_setting_id: '',
-          start_date: new Date().toISOString(),
-          total_days: periodDays,
-          elapsed_days: 0,
-          current_location_type: 'airport',
-          current_airport_id: startingAirportId,
-          current_port_id: null,
-          impressed_points: 0,
-          giver_points: 0,
-          total_points: 0,
-          status: 'active',
-          completed_at: null,
-          player_nickname: playerNickname,
-          player_color: 'red',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+      // 開発中は常にゲストセッションを使用
+      // ゲストセッションを作成（DBに保存しない）
+      const guestSession: any = {
+        id: 'guest-session-' + Date.now(),
+        user_id: userId,
+        period_setting_id: '',
+        start_date: new Date().toISOString(),
+        total_days: periodDays,
+        elapsed_days: 0,
+        current_location_type: 'airport',
+        current_airport_id: startingAirportId,
+        current_port_id: null,
+        impressed_points: 0,
+        giver_points: 0,
+        total_points: 0,
+        status: 'active',
+        completed_at: null,
+        player_nickname: playerNickname,
+        player_color: 'red',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-        setCurrentAirport(airport);
-        setGameSession(guestSession);
-        setGameState('playing');
-      } else {
-        // ログインユーザーの場合はDBに保存
-        const session = await createGameSession(
-          user.id,
-          null, // period_setting_idは後で設定する場合はnullを渡す
-          periodDays,
-          startingAirportId,
-          playerNickname
-        );
-
-        setCurrentAirport(airport);
-        setGameSession(session);
-        setGameState('playing');
-      }
+      setCurrentAirport(airport);
+      setGameSession(guestSession);
+      setGameState('playing');
     } catch (err) {
       console.error('=== Game Start Error ===');
       console.error('Error object:', err);
@@ -260,6 +249,18 @@ function GameContent() {
 
     // 経過日数を加算
     updateElapsedDays(days);
+
+    // 期間超過チェック（到着時に期間を超えている場合はゲーム終了）
+    if (gameSession) {
+      const newElapsedDays = gameSession.elapsed_days + days;
+      console.log(`期間チェック: ${newElapsedDays}日 / ${gameSession.total_days}日`);
+
+      if (newElapsedDays >= gameSession.total_days) {
+        console.log('🎉 期間終了！ゲームを終了します');
+        setGameState('completed');
+        return;
+      }
+    }
 
     // 目的地をクリア
     setDestinationAirport(null);
@@ -321,6 +322,9 @@ function GameContent() {
       return;
     }
 
+    // マス進行音を再生（カチッカチッカチッ）
+    playDiceSteps(result);
+
     // マス数を進める
     const newSpaceNumber = currentSpaceNumber + result;
     console.log(`Moving from space ${currentSpaceNumber} to ${newSpaceNumber} (total spaces: ${routeSpaces.length})`);
@@ -331,27 +335,80 @@ function GameContent() {
       setCurrentSpaceNumber(routeSpaces.length);
       console.log(`Arrived at destination!`);
 
+      // 到着ファンファーレを再生
+      playFanfare();
+
       // 到着地の名所・アート・グルメをフェッチ
       try {
         setLoading(true);
+        console.log('=== 到着地データ取得 ===');
+        console.log(`目的地: ${destinationAirport.city}, ${destinationAirport.country}`);
+
         const [attractions, arts, gourmets] = await Promise.all([
           getAttractionsByCountry(destinationAirport.country),
           getArtsByCity(destinationAirport.city),
           getGourmetByCountry(destinationAirport.country),
         ]);
 
-        // 各カテゴリから選択（ローカルデータ優先、なければグローバルからフォールバック）
+        console.log(`名所データ: ${attractions.length}件`);
+        console.log(`アートデータ: ${arts.length}件`);
+        console.log(`グルメデータ: ${gourmets.length}件`);
+
+        // データ不足の警告
+        if (attractions.length === 0) {
+          console.warn(`⚠️ ${destinationAirport.country}の名所データがありません`);
+        }
+        if (arts.length === 0) {
+          console.warn(`⚠️ ${destinationAirport.city}のアートデータがありません`);
+        }
+        if (gourmets.length === 0) {
+          console.warn(`⚠️ ${destinationAirport.country}のグルメデータがありません`);
+        }
+
+        // 各カテゴリから選択
+        // データがない場合は、この地域用の仮データを生成
         let randomAttraction = attractions.length > 0
           ? attractions[Math.floor(Math.random() * attractions.length)]
-          : await getRandomAttraction();
+          : {
+              id: 'temp-attraction',
+              name: `${destinationAirport.city}の名所`,
+              name_ja: `${destinationAirport.city}の名所`,
+              country: destinationAirport.country,
+              impressed_points: 20,
+              description: `${destinationAirport.city}を代表する素晴らしい観光地です。`,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as Attraction;
 
         let randomArt = arts.length > 0
           ? arts[Math.floor(Math.random() * arts.length)]
-          : await getRandomArt();
+          : {
+              id: 'temp-art',
+              name: `${destinationAirport.city}の芸術作品`,
+              name_ja: `${destinationAirport.city}の芸術作品`,
+              city: destinationAirport.city,
+              impressed_points: 15,
+              description: `${destinationAirport.city}で鑑賞できる美しい芸術作品です。`,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as Art;
 
         let randomGourmet = gourmets.length > 0
           ? gourmets[Math.floor(Math.random() * gourmets.length)]
-          : await getRandomGourmet();
+          : {
+              id: 'temp-gourmet',
+              name: `${destinationAirport.city}の郷土料理`,
+              name_ja: `${destinationAirport.city}の郷土料理`,
+              country: destinationAirport.country,
+              impressed_points: 18,
+              description: `${destinationAirport.city}で味わえる美味しい料理です。`,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as Gourmet;
+
+        console.log('選択された名所:', randomAttraction?.name_ja || randomAttraction?.name, `(${randomAttraction?.country})`);
+        console.log('選択されたアート:', randomArt?.name_ja || randomArt?.name, `(${randomArt?.city})`);
+        console.log('選択されたグルメ:', randomGourmet?.name_ja || randomGourmet?.name, `(${randomGourmet?.country})`);
 
         setArrivalAttraction(randomAttraction);
         setArrivalArt(randomArt);
@@ -545,11 +602,23 @@ function GameContent() {
       <div className="p-4 bg-white dark:bg-gray-900 shadow-md">
         <div className="mobile-container">
           <div className="flex flex-col gap-3">
-            <PointsDisplay
-              impressedPoints={gameSession.impressed_points}
-              giverPoints={gameSession.giver_points}
-              compact={true}
-            />
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <PointsDisplay
+                  impressedPoints={gameSession.impressed_points}
+                  giverPoints={gameSession.giver_points}
+                  compact={true}
+                />
+              </div>
+              <Button
+                onClick={() => setShowGameMenu(true)}
+                variant="outline"
+                size="sm"
+                className="ml-3"
+              >
+                ⋮ メニュー
+              </Button>
+            </div>
             <GameProgress
               elapsedDays={gameSession.elapsed_days}
               totalDays={gameSession.total_days}
@@ -559,6 +628,54 @@ function GameContent() {
           </div>
         </div>
       </div>
+
+      {/* ゲームメニューモーダル */}
+      {showGameMenu && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">
+              ゲームメニュー
+            </h2>
+            <div className="flex flex-col gap-3">
+              <Button
+                onClick={() => setShowGameMenu(false)}
+                size="lg"
+                variant="outline"
+                className="w-full"
+              >
+                ↩️ ゲームに戻る
+              </Button>
+              <Button
+                onClick={() => {
+                  if (confirm('ゲームを中断しますか？\n進行状況は保存されます。')) {
+                    window.location.href = '/';
+                  }
+                }}
+                size="lg"
+                variant="outline"
+                className="w-full text-orange-600 border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+              >
+                ⏸️ ゲームを中断
+              </Button>
+              <Button
+                onClick={() => {
+                  if (confirm('ゲームを終了しますか？\n現在の進行状況は失われます。')) {
+                    setGameState('setup');
+                    setGameSession(null);
+                    setCurrentAirport(null);
+                    setShowGameMenu(false);
+                  }
+                }}
+                size="lg"
+                variant="outline"
+                className="w-full text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                🚫 ゲームを終了
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* メインコンテンツ */}
       <div className="flex-1 overflow-y-auto p-4">
@@ -592,28 +709,15 @@ function GameContent() {
             )}
 
             {screenState === 'destination_roulette' && (() => {
-              // 残り日数を計算
-              const remainingDays = gameSession.total_days - gameSession.elapsed_days;
+              // 利用可能な空港をフィルタ（現在地と訪問済みを除外）
+              let availableAirports = airports.filter(a =>
+                a.id !== currentAirport.id &&
+                !visitedAirportIds.includes(a.id)
+              );
 
-              // 最終目的地（出発地に戻る）かどうかをチェック
-              const isLastDestination = remainingDays <= 5;
-
-              // 利用可能な空港をフィルタ
-              let availableAirports: Airport[];
-              if (isLastDestination && startingAirportId) {
-                // 最後は出発地のみ
-                availableAirports = airports.filter(a => a.id === startingAirportId);
-              } else {
-                // 現在地と訪問済みを除外
-                availableAirports = airports.filter(a =>
-                  a.id !== currentAirport.id &&
-                  !visitedAirportIds.includes(a.id)
-                );
-
-                // 選択肢がない場合は訪問済みも含める（ただし現在地は除く）
-                if (availableAirports.length === 0) {
-                  availableAirports = airports.filter(a => a.id !== currentAirport.id);
-                }
+              // 選択肢がない場合は訪問済みも含める（ただし現在地は除く）
+              if (availableAirports.length === 0) {
+                availableAirports = airports.filter(a => a.id !== currentAirport.id);
               }
 
               return (
@@ -626,12 +730,16 @@ function GameContent() {
 
             {screenState === 'movement_roulette' && (
               <div className="flex flex-col gap-3">
-                <Roulette onSpinComplete={handleMovementRouletteComplete} />
+                <Dice3D
+                  key={`dice-${currentSpaceNumber}`}
+                  onRollComplete={handleMovementRouletteComplete}
+                  disabled={false}
+                />
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-center">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    進行状況: {currentSpaceNumber} / {routeSpaces.length} マス
+                  <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mb-2">
+                    現在位置: {currentSpaceNumber} / {routeSpaces.length} マス
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     目的地まで残り {routeSpaces.length - currentSpaceNumber} マス
                   </p>
                 </div>

@@ -37,7 +37,7 @@ export default function GiverEvent({
     return labels[locationType] || '旅先';
   };
 
-  const actionOptions = scenario.action_options as ActionOption[];
+  const actionOptions = (scenario.action_options || []) as unknown as ActionOption[];
 
   const handleActionSelect = (action: ActionOption) => {
     setSelectedAction(action);

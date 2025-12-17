@@ -369,15 +369,92 @@ export class ToneGenerator {
  */
 export class DiceSoundGenerator {
   private ctx: AudioContext;
+  private audioBuffer: AudioBuffer | null = null;
+  private isLoading: boolean = false;
+  private useFallback: boolean = false;
 
   constructor() {
     this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    this.loadAudioFile();
   }
 
   /**
-   * 1マス移動ごとの「トン」という音を再生
+   * 音声ファイルを読み込み
+   */
+  private async loadAudioFile(): Promise<void> {
+    if (this.isLoading) return;
+    this.isLoading = true;
+
+    try {
+      const response = await fetch('/audio/bgm/passenger-plane-passing-close-by-2.mp3');
+      if (!response.ok) {
+        throw new Error('Failed to load audio file');
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      console.log('Airplane sound effect loaded successfully');
+    } catch (error) {
+      console.warn('Failed to load airplane sound, using fallback:', error);
+      this.useFallback = true;
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * 1マス移動ごとの音を再生（飛行機の通過音）
    */
   public async playDiceSteps(count: number): Promise<void> {
+    console.log('[DiceSteps] Called with count:', count);
+    console.log('[DiceSteps] isLoading:', this.isLoading);
+    console.log('[DiceSteps] audioBuffer:', this.audioBuffer ? 'loaded' : 'not loaded');
+    console.log('[DiceSteps] useFallback:', this.useFallback);
+
+    // 音声ファイルの読み込みを待つ
+    while (this.isLoading) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    // 音声ファイルが利用できる場合は、それを使用
+    if (this.audioBuffer && !this.useFallback) {
+      console.log('[DiceSteps] Playing audio file');
+      await this.playAudioFileSteps(count);
+    } else {
+      console.log('[DiceSteps] Playing fallback tone');
+      // フォールバック: 既存の音階を使用
+      await this.playToneSteps(count);
+    }
+  }
+
+  /**
+   * 音声ファイルを使用してステップ音を再生
+   */
+  private async playAudioFileSteps(count: number): Promise<void> {
+    if (!this.audioBuffer) return;
+
+    for (let i = 0; i < count; i++) {
+      const source = this.ctx.createBufferSource();
+      source.buffer = this.audioBuffer;
+
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.3; // 音量調整
+
+      source.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      source.start();
+      // 短く再生（0.3秒）
+      source.stop(this.ctx.currentTime + 0.3);
+
+      // 次のステップまで待機（400ms）
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
+  }
+
+  /**
+   * フォールバック: 音階を使用してステップ音を再生
+   */
+  private async playToneSteps(count: number): Promise<void> {
     const notes = [
       NOTES.C5, NOTES.D5, NOTES.E5, NOTES.F5,
       NOTES.G5, NOTES.A5, NOTES.B5, NOTES.C5,

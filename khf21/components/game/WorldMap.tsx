@@ -140,6 +140,33 @@ export default function WorldMap({
   const currentLat = getCoordinate(currentAirport.latitude);
   const currentLng = getCoordinate(currentAirport.longitude);
 
+  // プレイヤーの実際の位置を計算（移動中は経路上のマスに表示）
+  const playerPosition = useMemo(() => {
+    // 移動中で、ルートが存在する場合
+    if (currentSpace > 0 && routeSpaces.length > 0) {
+      // 目的地に到達している場合
+      if (currentSpace >= routeSpaces.length && destinationAirport) {
+        return {
+          lat: getCoordinate(destinationAirport.latitude),
+          lng: getCoordinate(destinationAirport.longitude),
+        };
+      }
+      // まだ移動中の場合は、現在のマス位置
+      const spaceIndex = Math.min(currentSpace, routeSpaces.length) - 1;
+      if (spaceIndex >= 0 && routeSpaces[spaceIndex]) {
+        return {
+          lat: routeSpaces[spaceIndex].lat,
+          lng: routeSpaces[spaceIndex].lng,
+        };
+      }
+    }
+    // それ以外は出発地
+    return {
+      lat: currentLat,
+      lng: currentLng,
+    };
+  }, [currentSpace, routeSpaces, currentLat, currentLng, destinationAirport]);
+
   // デバッグログ（コンソールで確認）
   useEffect(() => {
     console.log('=== 地図デバッグ情報 ===');
@@ -147,12 +174,12 @@ export default function WorldMap({
     console.log(`データベース値: lat=${currentAirport.latitude}, lng=${currentAirport.longitude}`);
     console.log(`データ型: lat=${typeof currentAirport.latitude}, lng=${typeof currentAirport.longitude}`);
     console.log(`変換後: lat=${currentLat}, lng=${currentLng}`);
-    console.log(`羽田の正解: lat=35.5494, lng=139.7798`);
     console.log(`目的地: ${destinationAirport ? destinationAirport.city : 'なし'}`);
     console.log(`ルート表示: ${showRoute}`);
     console.log(`マス目数: ${routeSpaces.length}`);
     console.log(`現在のマス: ${currentSpace}`);
-  }, [currentAirport, currentLat, currentLng, destinationAirport, showRoute, routeSpaces, currentSpace]);
+    console.log(`プレイヤー位置: lat=${playerPosition.lat}, lng=${playerPosition.lng}`);
+  }, [currentAirport, currentLat, currentLng, destinationAirport, showRoute, routeSpaces, currentSpace, playerPosition]);
 
   // ルートライン（現在地から目的地）
   const routeLine = useMemo(() => {
@@ -165,7 +192,36 @@ export default function WorldMap({
       [currentLat, currentLng] as [number, number],
       [destLat, destLng] as [number, number],
     ];
-  }, [showRoute, currentAirport, destinationAirport]);
+  }, [showRoute, currentLat, currentLng, destinationAirport]);
+
+  // マップの中心とズームを計算（経路全体が表示されるように）
+  const mapCenterAndZoom = useMemo(() => {
+    if (destinationAirport && showRoute) {
+      const destLat = getCoordinate(destinationAirport.latitude);
+      const destLng = getCoordinate(destinationAirport.longitude);
+
+      // 経路の中心点を計算
+      const centerLat = (currentLat + destLat) / 2;
+      const centerLng = (currentLng + destLng) / 2;
+
+      // 距離に応じてズームレベルを調整
+      const latDiff = Math.abs(currentLat - destLat);
+      const lngDiff = Math.abs(currentLng - destLng);
+      const maxDiff = Math.max(latDiff, lngDiff);
+
+      let zoom = 5; // デフォルト
+      if (maxDiff < 5) zoom = 6;
+      else if (maxDiff < 10) zoom = 5;
+      else if (maxDiff < 20) zoom = 4;
+      else if (maxDiff < 40) zoom = 3;
+      else zoom = 2;
+
+      return { center: [centerLat, centerLng] as [number, number], zoom };
+    }
+
+    // 目的地がない場合は現在地中心
+    return { center: [currentLat, currentLng] as [number, number], zoom: 4 };
+  }, [currentLat, currentLng, destinationAirport, showRoute]);
 
   if (!isClient) {
     return (
@@ -239,8 +295,9 @@ export default function WorldMap({
       </div>
 
       <MapContainer
-        center={[currentLat, currentLng]}
-        zoom={4}
+        center={mapCenterAndZoom.center}
+        zoom={mapCenterAndZoom.zoom}
+        key={`map-${destinationAirport?.id || 'none'}`}
         minZoom={2}
         maxZoom={10}
         style={{ height: "100%", width: "100%" }}
@@ -297,27 +354,52 @@ export default function WorldMap({
           );
         })}
 
-        {/* 現在地マーカー（飛行機アイコン） */}
+        {/* プレイヤーマーカー（飛行機アイコン） */}
         {planeIcon && (
           <Marker
-            position={[currentLat, currentLng]}
+            position={[playerPosition.lat, playerPosition.lng]}
             icon={planeIcon}
           >
             <Tooltip direction="top" offset={[0, -20]} opacity={1}>
               <div className="text-center">
                 <div className="font-bold mb-1" style={{ color: colors.primary }}>👤 {playerNickname}</div>
-                <div className="font-bold">✈️ {currentAirport.city}</div>
-                <div className="text-xs text-gray-600">{currentAirport.name_ja || currentAirport.name}</div>
-                <div className="text-xs text-gray-500">{currentAirport.code}</div>
-                <div className="text-xs font-bold" style={{ color: colors.primary }}>現在地</div>
+                {currentSpace > 0 && routeSpaces.length > 0 ? (
+                  <>
+                    <div className="font-bold">🛫 移動中</div>
+                    <div className="text-xs text-gray-600">
+                      マス {currentSpace} / {routeSpaces.length}
+                    </div>
+                    <div className="text-xs font-bold" style={{ color: colors.primary }}>
+                      目的地: {destinationAirport?.city || '不明'}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-bold">✈️ {currentAirport.city}</div>
+                    <div className="text-xs text-gray-600">{currentAirport.name_ja || currentAirport.name}</div>
+                    <div className="text-xs text-gray-500">{currentAirport.code}</div>
+                    <div className="text-xs font-bold" style={{ color: colors.primary }}>現在地</div>
+                  </>
+                )}
               </div>
             </Tooltip>
             <Popup>
               <div className="text-center">
                 <div className="text-lg font-bold mb-1" style={{ color: colors.primary }}>👤 {playerNickname}</div>
                 <div className="text-2xl mb-1">✈️</div>
-                <div className="font-bold">{currentAirport.city}</div>
-                <div className="text-sm text-gray-600">現在地</div>
+                {currentSpace > 0 && routeSpaces.length > 0 ? (
+                  <>
+                    <div className="font-bold">移動中</div>
+                    <div className="text-sm text-gray-600">
+                      マス {currentSpace} / {routeSpaces.length}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-bold">{currentAirport.city}</div>
+                    <div className="text-sm text-gray-600">現在地</div>
+                  </>
+                )}
               </div>
             </Popup>
           </Marker>

@@ -4,6 +4,7 @@
  */
 
 import { ToneGenerator, DiceSoundGenerator } from './toneGenerator';
+import { BGM_URLS } from './constants';
 
 export type BGMScene =
   | 'title'           // タイトル/マップ画面
@@ -20,7 +21,7 @@ export interface BGMTrack {
   scene: BGMScene;
   name: string;
   description: string;
-  src: string;
+  src: string | string[] | readonly string[]; // 単一のURLまたは複数のURLから選択
   volume: number;
   loop: boolean;
   fadeInDuration?: number;
@@ -33,7 +34,7 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     scene: 'title',
     name: 'タイトル',
     description: '明るく軽快なメロディ',
-    src: '/audio/bgm/title.mp3',
+    src: BGM_URLS.GAME_START,
     volume: 0.6,
     loop: true,
     fadeInDuration: 1000,
@@ -43,7 +44,7 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     scene: 'roulette',
     name: 'ルーレット',
     description: 'ワクワク感のあるメロディ',
-    src: '/audio/bgm/roulette.mp3',
+    src: BGM_URLS.DESTINATION_ROULETTE,
     volume: 0.5,
     loop: true,
     fadeInDuration: 500,
@@ -53,7 +54,7 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     scene: 'dice_wait',
     name: 'サイコロ待機',
     description: '期待感のあるメロディ',
-    src: '/audio/bgm/dice_wait.mp3',
+    src: BGM_URLS.DICE_ROULETTE,
     volume: 0.5,
     loop: true,
     fadeInDuration: 500,
@@ -62,8 +63,8 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
   flying: {
     scene: 'flying',
     name: '飛行中',
-    description: 'リアルなジェットエンジン音',
-    src: '/audio/bgm/flying.mp3',
+    description: '飛行機のエンジン音',
+    src: BGM_URLS.FLYING,
     volume: 0.4,
     loop: true,
     fadeInDuration: 2000,
@@ -72,8 +73,8 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
   attraction: {
     scene: 'attraction',
     name: '名所マス',
-    description: '明るく軽快なピアノ',
-    src: '/audio/bgm/attraction.mp3',
+    description: '明るく軽快なメロディ',
+    src: BGM_URLS.BRIGHT,
     volume: 0.6,
     loop: true,
     fadeInDuration: 1000,
@@ -82,8 +83,8 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
   calm: {
     scene: 'calm',
     name: 'アート/グルメマス',
-    description: '癒される優しいピアノ',
-    src: '/audio/bgm/calm.mp3',
+    description: '癒される優しいメロディ',
+    src: BGM_URLS.WARM,
     volume: 0.5,
     loop: true,
     fadeInDuration: 1000,
@@ -92,8 +93,8 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
   trouble: {
     scene: 'trouble',
     name: 'トラブルマス',
-    description: '重低音で暗く物悲しいピアノ',
-    src: '/audio/bgm/trouble.mp3',
+    description: '暗く重いメロディ',
+    src: BGM_URLS.TROUBLE,
     volume: 0.6,
     loop: true,
     fadeInDuration: 500,
@@ -103,7 +104,7 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     scene: 'arrival',
     name: '到着',
     description: '達成感のあるメロディ',
-    src: '/audio/bgm/arrival.mp3',
+    src: BGM_URLS.BRIGHT,
     volume: 0.7,
     loop: false,
     fadeInDuration: 500,
@@ -113,7 +114,7 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     scene: 'ending',
     name: 'エンディング',
     description: '華やかなエンディング',
-    src: '/audio/bgm/ending.mp3',
+    src: BGM_URLS.BRIGHT,
     volume: 0.7,
     loop: false,
     fadeInDuration: 1000,
@@ -130,11 +131,31 @@ class BGMManager {
   private toneGenerator: ToneGenerator;
   private diceSoundGenerator: DiceSoundGenerator;
   private useToneGenerator: boolean = false;
+  private selectedStartBGM: string | null = null; // ゲーム開始時に選択されたBGM
 
   constructor() {
     this.toneGenerator = new ToneGenerator();
     this.diceSoundGenerator = new DiceSoundGenerator();
     this.loadSettings();
+  }
+
+  /**
+   * ゲーム開始時のBGMを設定
+   */
+  public setStartBGM(url: string): void {
+    this.selectedStartBGM = url;
+    try {
+      localStorage.setItem('selected_start_bgm', url);
+    } catch (e) {
+      console.warn('Failed to save start BGM:', e);
+    }
+  }
+
+  /**
+   * ゲーム開始時のBGMを取得
+   */
+  public getStartBGM(): string | null {
+    return this.selectedStartBGM;
   }
 
   /**
@@ -144,12 +165,16 @@ class BGMManager {
     try {
       const savedVolume = localStorage.getItem('bgm_volume');
       const savedMuted = localStorage.getItem('bgm_muted');
+      const savedStartBGM = localStorage.getItem('selected_start_bgm');
 
       if (savedVolume !== null) {
         this.volume = parseFloat(savedVolume);
       }
       if (savedMuted !== null) {
         this.isMuted = savedMuted === 'true';
+      }
+      if (savedStartBGM !== null) {
+        this.selectedStartBGM = savedStartBGM;
       }
     } catch (e) {
       console.warn('Failed to load audio settings:', e);
@@ -166,6 +191,21 @@ class BGMManager {
     } catch (e) {
       console.warn('Failed to save audio settings:', e);
     }
+  }
+
+  /**
+   * 配列からランダムにURLを選択
+   */
+  private selectRandomURL(src: string | string[] | readonly string[], scene: BGMScene): string {
+    if (typeof src === 'string') {
+      return src;
+    }
+    // タイトルシーンかつ選択されたBGMがある場合はそれを使用
+    if (scene === 'title' && this.selectedStartBGM) {
+      return this.selectedStartBGM;
+    }
+    // ランダムに選択
+    return src[Math.floor(Math.random() * src.length)];
   }
 
   /**
@@ -188,18 +228,11 @@ class BGMManager {
     this.currentScene = scene;
     const track = BGM_TRACKS[scene];
 
-    // 飛行中はエンジン音を生成
-    if (scene === 'flying') {
-      this.useToneGenerator = true;
-      this.toneGenerator.startEngineSound();
-      this.toneGenerator.setVolume(this.isMuted ? 0 : this.volume);
-      return;
-    }
-
     // MP3ファイルの読み込みを試行
     try {
       this.useToneGenerator = false;
-      const audio = new Audio(track.src);
+      const selectedURL = this.selectRandomURL(track.src, scene);
+      const audio = new Audio(selectedURL);
       audio.loop = track.loop;
       audio.volume = 0;
 
@@ -373,6 +406,10 @@ class BGMManager {
    * サイコロ移動音を再生
    */
   public async playDiceSteps(count: number): Promise<void> {
+    // ミュート中は再生しない
+    if (this.isMuted) {
+      return;
+    }
     await this.diceSoundGenerator.playDiceSteps(count);
   }
 }
