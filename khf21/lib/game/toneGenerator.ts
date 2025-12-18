@@ -386,13 +386,13 @@ export class DiceSoundGenerator {
     this.isLoading = true;
 
     try {
-      const response = await fetch('/audio/bgm/passenger-plane-passing-close-by-2.mp3');
+      const response = await fetch('/audio/bgm/passenger-plane-passing-close-by-1.mp3');
       if (!response.ok) {
         throw new Error('Failed to load audio file');
       }
       const arrayBuffer = await response.arrayBuffer();
       this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-      console.log('Airplane sound effect loaded successfully');
+      console.log('Airplane sound effect loaded successfully (duration:', this.audioBuffer.duration, 'seconds)');
     } catch (error) {
       console.warn('Failed to load airplane sound, using fallback:', error);
       this.useFallback = true;
@@ -428,27 +428,27 @@ export class DiceSoundGenerator {
 
   /**
    * 音声ファイルを使用してステップ音を再生
+   * マス数に関係なく、飛行機通過音を最初から最後まで（約6秒間）フル再生
    */
-  private async playAudioFileSteps(count: number): Promise<void> {
+  private async playAudioFileSteps(_count: number): Promise<void> {
     if (!this.audioBuffer) return;
 
-    for (let i = 0; i < count; i++) {
-      const source = this.ctx.createBufferSource();
-      source.buffer = this.audioBuffer;
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.audioBuffer;
 
-      const gain = this.ctx.createGain();
-      gain.gain.value = 0.3; // 音量調整
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.4; // 音量調整
 
-      source.connect(gain);
-      gain.connect(this.ctx.destination);
+    source.connect(gain);
+    gain.connect(this.ctx.destination);
 
-      source.start();
-      // 短く再生（0.3秒）
-      source.stop(this.ctx.currentTime + 0.3);
+    // 音声ファイル全体を再生（最初から最後まで）
+    source.start(0);
 
-      // 次のステップまで待機（400ms）
-      await new Promise(resolve => setTimeout(resolve, 400));
-    }
+    // 音声の長さ分待機（音声ファイルの実際の長さで自動調整）
+    const duration = this.audioBuffer.duration;
+    console.log('Playing airplane sound for', duration, 'seconds');
+    await new Promise(resolve => setTimeout(resolve, duration * 1000));
   }
 
   /**

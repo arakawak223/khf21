@@ -29,19 +29,23 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
 
     // Three.jsのセットアップ
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a472a); // 緑のテーブル
+    scene.background = new THREE.Color(0x1a472a); // 緑のテーブルと同じ色
     sceneRef.current = scene;
 
-    // カメラ
-    const camera = new THREE.PerspectiveCamera(
-      50,
-      containerRef.current.clientWidth / containerRef.current.clientHeight,
+    // Orthographicカメラ（真上から見下ろす、確実にサイコロが見える）
+    const aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
+    const frustumSize = 6;
+    const camera = new THREE.OrthographicCamera(
+      frustumSize * aspect / -2,
+      frustumSize * aspect / 2,
+      frustumSize / 2,
+      frustumSize / -2,
       0.1,
       1000
     );
-    camera.position.set(0, 4, 8);
+    camera.position.set(2, 8, 2);
     camera.lookAt(0, 0, 0);
-    cameraRef.current = camera;
+    cameraRef.current = camera as any;
 
     // レンダラー
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -76,8 +80,30 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
 
     world.addBody(floorBody);
 
-    // 床（視覚）
-    const floorGeometry = new THREE.PlaneGeometry(20, 20);
+    // 壁を追加してサイコロが画面外に出ないようにする
+    const wallMaterial = new CANNON.Material('wall');
+    const wallSize = 2.5;
+
+    // 4つの壁
+    const walls = [
+      { pos: [wallSize, 2, 0], rot: [0, Math.PI / 2, 0] }, // 右
+      { pos: [-wallSize, 2, 0], rot: [0, -Math.PI / 2, 0] }, // 左
+      { pos: [0, 2, wallSize], rot: [0, 0, 0] }, // 前
+      { pos: [0, 2, -wallSize], rot: [0, Math.PI, 0] }, // 後
+    ];
+
+    walls.forEach(({ pos, rot }) => {
+      const wallShape = new CANNON.Plane();
+      const wallBody = new CANNON.Body({ mass: 0 });
+      wallBody.addShape(wallShape);
+      wallBody.position.set(pos[0], pos[1], pos[2]);
+      wallBody.quaternion.setFromEuler(rot[0], rot[1], rot[2]);
+      wallBody.material = wallMaterial;
+      world.addBody(wallBody);
+    });
+
+    // 床（視覚）- コンパクトなテーブル
+    const floorGeometry = new THREE.PlaneGeometry(6, 6);
     const floorMeshMaterial = new THREE.MeshStandardMaterial({
       color: 0x1a472a,
       roughness: 0.8
@@ -101,6 +127,28 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
         // サイコロのメッシュを物理ボディと同期
         diceMeshRef.current.position.copy(diceBodyRef.current.position as any);
         diceMeshRef.current.quaternion.copy(diceBodyRef.current.quaternion as any);
+
+        // サイコロの速度チェック（停止判定）
+        // isRollingはstateなので、useRefで管理する
+        const velocity = diceBodyRef.current.velocity;
+        const angularVelocity = diceBodyRef.current.angularVelocity;
+        const speed = Math.sqrt(
+          velocity.x * velocity.x +
+          velocity.y * velocity.y +
+          velocity.z * velocity.z
+        );
+        const angularSpeed = Math.sqrt(
+          angularVelocity.x * angularVelocity.x +
+          angularVelocity.y * angularVelocity.y +
+          angularVelocity.z * angularVelocity.z
+        );
+
+        // 速度が十分に遅くなり、床の上にあったら停止と判定
+        if (speed < 0.05 && angularSpeed < 0.05 && diceBodyRef.current.position.y < 1.5 && diceBodyRef.current.position.y > 0.5) {
+          // 速度を完全に止める
+          diceBodyRef.current.velocity.set(0, 0, 0);
+          diceBodyRef.current.angularVelocity.set(0, 0, 0);
+        }
       }
 
       renderer.render(scene, camera);
@@ -122,8 +170,8 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
   const createDice = () => {
     if (!sceneRef.current || !worldRef.current) return;
 
-    // サイコロのジオメトリ
-    const diceSize = 1.8;
+    // サイコロのジオメトリ（大きく見やすく）
+    const diceSize = 1.5;
     const geometry = new THREE.BoxGeometry(diceSize, diceSize, diceSize);
 
     // サイコロの面のマテリアル（1-6の目）
@@ -138,7 +186,7 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
 
     const diceMesh = new THREE.Mesh(geometry, materials);
     diceMesh.castShadow = true;
-    diceMesh.position.set(0, 4, 0);
+    diceMesh.position.set(0, -100, 0); // 初期状態は画面外
     sceneRef.current.add(diceMesh);
     diceMeshRef.current = diceMesh;
 
@@ -150,9 +198,9 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
     const body = new CANNON.Body({
       mass: 1,
       shape: shape,
-      position: new CANNON.Vec3(0, 4, 0),
-      linearDamping: 0.2,
-      angularDamping: 0.2,
+      position: new CANNON.Vec3(0, -100, 0), // 初期状態は画面外
+      linearDamping: 0.3,
+      angularDamping: 0.3,
       material: diceMaterial,
     });
 
@@ -238,33 +286,37 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
     setIsRolling(true);
     setResult(null);
 
-    // サイコロをリセット
+    // サイコロをリセット（中央上部から投げる）
     diceBodyRef.current.position.set(
-      (Math.random() - 0.5) * 2,
-      4,
+      (Math.random() - 0.5) * 0.3, // 横方向のランダム性を最小限に
+      3, // 高めの位置から
+      (Math.random() - 0.5) * 0.3
+    );
+
+    // ランダムな初速度を与える
+    diceBodyRef.current.velocity.set(
+      (Math.random() - 0.5) * 2, // 水平方向の速度を抑える
+      0, // 上向きには投げない（落とすだけ）
       (Math.random() - 0.5) * 2
     );
 
-    // ランダムな初速度を与える（3秒でしっかり転がる）
-    diceBodyRef.current.velocity.set(
-      (Math.random() - 0.5) * 12, // 水平方向の速度を上げる
-      3, // 上向きに投げる
-      (Math.random() - 0.5) * 12
-    );
-
     diceBodyRef.current.angularVelocity.set(
-      Math.random() * 30, // 回転速度を上げる
-      Math.random() * 30,
-      Math.random() * 30
+      (Math.random() - 0.5) * 20, // 回転速度
+      (Math.random() - 0.5) * 20,
+      (Math.random() - 0.5) * 20
     );
 
-    // 3秒後に結果を判定
+    // 2.5秒後に結果を判定
     setTimeout(() => {
+      if (diceBodyRef.current) {
+        diceBodyRef.current.velocity.set(0, 0, 0);
+        diceBodyRef.current.angularVelocity.set(0, 0, 0);
+      }
       const diceResult = getDiceResult();
       setResult(diceResult);
       setIsRolling(false);
       onRollComplete(diceResult);
-    }, 3000);
+    }, 2500);
   };
 
   const getDiceResult = (): number => {
@@ -312,7 +364,7 @@ export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps
       <div
         ref={containerRef}
         className="relative border-4 border-amber-700 rounded-lg shadow-2xl"
-        style={{ width: '300px', height: '220px' }}
+        style={{ width: '300px', height: '250px' }}
       />
 
       {/* 結果表示 */}
