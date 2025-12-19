@@ -132,6 +132,7 @@ class BGMManager {
   private diceSoundGenerator: DiceSoundGenerator;
   private useToneGenerator: boolean = false;
   private selectedStartBGM: string | null = null; // ゲーム開始時に選択されたBGM
+  private sfxAudio: HTMLAudioElement | null = null; // 効果音用のAudioオブジェクト
 
   constructor() {
     this.toneGenerator = new ToneGenerator();
@@ -368,6 +369,11 @@ class BGMManager {
       const track = BGM_TRACKS[this.currentScene];
       this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
     }
+
+    // 効果音も音量を更新
+    if (this.sfxAudio) {
+      this.sfxAudio.volume = this.isMuted ? 0 : this.volume * 0.8;
+    }
   }
 
   /**
@@ -382,6 +388,11 @@ class BGMManager {
     } else if (this.currentAudio && this.currentScene) {
       const track = BGM_TRACKS[this.currentScene];
       this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
+    }
+
+    // 効果音も音量を更新
+    if (this.sfxAudio) {
+      this.sfxAudio.volume = this.isMuted ? 0 : this.volume * 0.8;
     }
 
     return this.isMuted;
@@ -411,6 +422,99 @@ class BGMManager {
       return;
     }
     await this.diceSoundGenerator.playDiceSteps(count);
+  }
+
+  /**
+   * ファンファーレ効果音を再生
+   */
+  public async playFanfare(): Promise<void> {
+    // ミュート中は再生しない
+    if (this.isMuted) {
+      console.log('[Fanfare] Muted - not playing');
+      return;
+    }
+
+    console.log('[Fanfare] Playing fanfare from audio file');
+
+    try {
+      // 既存の効果音を停止
+      if (this.sfxAudio) {
+        this.sfxAudio.pause();
+        this.sfxAudio.currentTime = 0;
+        this.sfxAudio = null;
+      }
+
+      // 効果音ファイルを再生
+      const fanfareAudio = new Audio('/audio/sfx/fanfare.mp3');
+      fanfareAudio.volume = this.isMuted ? 0 : this.volume * 0.8; // 効果音は少し控えめに
+      this.sfxAudio = fanfareAudio;
+
+      // エラーハンドリング
+      fanfareAudio.onerror = () => {
+        console.warn('Failed to load fanfare.mp3, using fallback tone');
+        this.sfxAudio = null;
+        this.playFanfareFallback();
+      };
+
+      await fanfareAudio.play();
+
+      // 効果音が終わるまで待つ（約3秒）
+      await new Promise(resolve => {
+        fanfareAudio.onended = () => {
+          this.sfxAudio = null;
+          resolve(undefined);
+        };
+        // タイムアウトも設定（念のため）
+        setTimeout(() => {
+          this.sfxAudio = null;
+          resolve(undefined);
+        }, 5000);
+      });
+    } catch (error) {
+      console.warn('Failed to play fanfare, using fallback:', error);
+      this.sfxAudio = null;
+      this.playFanfareFallback();
+    }
+  }
+
+  /**
+   * フォールバック用のファンファーレ音（Web Audio API）
+   */
+  private playFanfareFallback(): void {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+      // ファンファーレのメロディ: C-E-G-C5-E5-G5
+      const notes = [
+        { freq: 523.25, time: 0, duration: 0.3 },     // C5
+        { freq: 659.25, time: 0.3, duration: 0.3 },   // E5
+        { freq: 783.99, time: 0.6, duration: 0.3 },   // G5
+        { freq: 1046.50, time: 0.9, duration: 0.3 },  // C6
+        { freq: 1318.51, time: 1.2, duration: 0.3 },  // E6
+        { freq: 1567.98, time: 1.5, duration: 0.5 },  // G6
+      ];
+
+      notes.forEach((note) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = note.freq;
+        oscillator.type = 'triangle';
+
+        const now = audioContext.currentTime + note.time;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.3, now + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + note.duration);
+
+        oscillator.start(now);
+        oscillator.stop(now + note.duration);
+      });
+    } catch (error) {
+      console.error('Failed to play fallback fanfare:', error);
+    }
   }
 }
 
