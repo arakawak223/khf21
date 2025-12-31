@@ -119,3 +119,8 @@ COMMENT ON TABLE overtake_events IS '追い越しイベントの記録';
 COMMENT ON COLUMN overtake_events.action_type IS 'ペナルティ/サポートの種類';
 
 COMMENT ON TABLE freeman_transformations IS 'フリーマンの変化記録（DフリーマンからSフリーマンへなど）';
+
+
+
+
+

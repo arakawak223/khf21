@@ -45,6 +45,9 @@ import {
 } from '@/lib/game/movement';
 import { createClient } from '@/lib/supabase/client';
 import type { Airport, Attraction, Star, Art, Gourmet, Trouble, GiverScenario, EncouragementGratitudeScenario } from '@/types/database.types';
+import { TurnIndicator } from '@/components/game/TurnIndicator';
+import { PlayerList } from '@/components/game/PlayerList';
+import { FreemanAI } from '@/lib/game/freemanAI';
 
 function GameContent() {
   const {
@@ -56,6 +59,13 @@ function GameContent() {
     updatePoints,
     setLoading,
     setError,
+    // 複数プレイヤー対応
+    players,
+    currentTurnPlayer,
+    setPlayers,
+    setCurrentTurnPlayer,
+    startTurn,
+    endTurn,
   } = useGame();
 
   const { playBGM, stopBGM, playDiceSteps, playFanfare } = useAudio();
@@ -69,6 +79,7 @@ function GameContent() {
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [selectedGiverPoints, setSelectedGiverPoints] = useState(0);
   const [destinationAirport, setDestinationAirport] = useState<Airport | null>(null);
+  const [destinationCount, setDestinationCount] = useState<number>(0); // 目的地の順番カウンター
   const [travelDistance, setTravelDistance] = useState<number>(0);
   const [stayDays, setStayDays] = useState<number>(0);
   const [routeSpaces, setRouteSpaces] = useState<Array<{ lat: number; lng: number; spaceNumber: number }>>([]);
@@ -77,9 +88,20 @@ function GameContent() {
   const [arrivalArt, setArrivalArt] = useState<Art | null>(null);
   const [arrivalGourmet, setArrivalGourmet] = useState<Gourmet | null>(null);
   const [visitedAirportIds, setVisitedAirportIds] = useState<string[]>([]);
+
+  // 目的地ごとの選択済みアイテムと到着済みプレイヤー
+  const [destinationSelections, setDestinationSelections] = useState<Record<string, {
+    selectedAttraction?: string;
+    selectedArt?: string;
+    selectedGourmet?: string;
+    arrivedPlayers: string[];
+  }>>({});
   const [startingAirportId, setStartingAirportId] = useState<string | null>(null);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [showGameMenu, setShowGameMenu] = useState(false);
+  const [freemanActionMessage, setFreemanActionMessage] = useState<string>('');
+  const [freemanRollingDice, setFreemanRollingDice] = useState(false);
+  const [freemanDiceProcessing, setFreemanDiceProcessing] = useState(false);
 
   // 空港データ取得
   useEffect(() => {
@@ -197,8 +219,9 @@ function GameContent() {
 
       // 開発中は常にゲストセッションを使用
       // ゲストセッションを作成（DBに保存しない）
+      const sessionId = 'guest-session-' + Date.now();
       const guestSession: any = {
-        id: 'guest-session-' + Date.now(),
+        id: sessionId,
         user_id: userId,
         period_setting_id: '',
         start_date: new Date().toISOString(),
@@ -216,11 +239,66 @@ function GameContent() {
         player_color: 'red',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        // 複数プレイヤー対応
+        is_multiplayer: true,
+        total_players: 2,
+        current_turn_order: 1,
       };
+
+      // 複数プレイヤーシステム: 2プレイヤーを作成（人間 + Dフリーマン）
+      console.log('Creating 2 players: Human + D-Freeman...');
+
+      // プレイヤー1: 人間
+      const humanPlayer: any = {
+        id: 'player-human-' + Date.now(),
+        game_session_id: sessionId,
+        player_type: 'human',
+        player_order: 1,
+        player_nickname: playerNickname,
+        player_color: '#3b82f6', // 青
+        current_location_type: 'airport',
+        current_airport_id: startingAirportId,
+        current_space_number: 0,
+        route_spaces: null,
+        impressed_points: 0,
+        giver_points: 0,
+        total_points: 0,
+        is_skipping_turn: false,
+        freeman_type: null,
+      };
+
+      // プレイヤー2: Dフリーマン（対戦型）
+      const freemanPlayer: any = {
+        id: 'player-freeman-' + Date.now(),
+        game_session_id: sessionId,
+        player_type: 'freeman_d',
+        player_order: 2,
+        player_nickname: 'Dフリーマン',
+        player_color: '#ef4444', // 赤
+        current_location_type: 'airport',
+        current_airport_id: startingAirportId,
+        current_space_number: 0,
+        route_spaces: null,
+        impressed_points: 0,
+        giver_points: 0,
+        total_points: 0,
+        is_skipping_turn: false,
+        freeman_type: 'defense',
+      };
+
+      console.log('Players created:', { humanPlayer, freemanPlayer });
+
+      // GameContextに設定
+      setPlayers([humanPlayer, freemanPlayer]);
+      setCurrentTurnPlayer(humanPlayer); // 最初は人間のターン
 
       setCurrentAirport(airport);
       setGameSession(guestSession);
       setGameState('playing');
+
+      console.log('Game started in multiplayer mode with 2 players');
+      console.log('Current turn player:', humanPlayer.player_nickname);
+      console.log('Is multiplayer:', guestSession.is_multiplayer);
     } catch (err) {
       console.error('=== Game Start Error ===');
       console.error('Error object:', err);
@@ -238,7 +316,7 @@ function GameContent() {
   };
 
   // 移動を実行
-  const performMove = (destination: Airport, _distance: number, days: number) => {
+  const performMove = async (destination: Airport, _distance: number, days: number) => {
     console.log(`Arriving at ${destination.city}, staying for ${days} days`);
 
     // 現在地を更新
@@ -262,6 +340,25 @@ function GameContent() {
       }
     }
 
+    // Multiplayer: 現在のターンプレイヤーの状態を更新（目的地到達）
+    if ((gameSession as any).is_multiplayer && currentTurnPlayer) {
+      setPlayers((prevPlayers) => {
+        const updatedPlayers = prevPlayers.map((p) =>
+          p.id === currentTurnPlayer.id
+            ? {
+                ...p,
+                current_airport_id: destination.id,
+                route_spaces: null, // ルートをクリア
+                current_space_number: 0, // マス数をリセット
+              }
+            : p
+        );
+        setCurrentTurnPlayer(updatedPlayers.find(p => p.id === currentTurnPlayer.id) || currentTurnPlayer);
+        console.log(`プレイヤー ${currentTurnPlayer.player_nickname} が ${destination.city} に到着`);
+        return updatedPlayers;
+      });
+    }
+
     // 目的地をクリア
     setDestinationAirport(null);
     setTravelDistance(0);
@@ -278,6 +375,9 @@ function GameContent() {
 
     // マップ画面に戻る
     setScreenState('map');
+
+    // ターン切り替えは明示的に呼ばれた時のみ行う（自動では行わない）
+    console.log('目的地到着完了。マップ画面に戻りました。');
   };
 
   // 目的地紹介から出発（移動ルーレット画面へ）
@@ -296,11 +396,22 @@ function GameContent() {
     const distance = calculateDistance(currentAirport, destination);
     const days = calculateStayDays(distance);
 
-    console.log(`Selected destination: ${destination.city}, distance: ${distance}km, stay: ${days} days`);
+    // 目的地カウンターをインクリメント
+    const newCount = destinationCount + 1;
+    setDestinationCount(newCount);
+
+    console.log(`Selected destination: ${destination.city}, distance: ${distance}km, stay: ${days} days (目的地${newCount})`);
 
     setDestinationAirport(destination);
     setTravelDistance(distance);
     setStayDays(days);
+
+    // 新しい目的地の選択済みリストを初期化
+    setDestinationSelections({
+      ...destinationSelections,
+      [destination.id]: { arrivedPlayers: [] },
+    });
+    console.log(`新しい目的地の選択リストを初期化: ${destination.city}`);
 
     // 経路上のマス目を計算
     const spaces = calculateRouteSpaces(currentAirport, destination, 500);
@@ -308,6 +419,29 @@ function GameContent() {
     setCurrentSpaceNumber(0); // 移動開始時は0マス目（出発地）
 
     console.log(`Route has ${spaces.length} spaces (500km each)`);
+
+    // Multiplayer: 目的地に到達していない全プレイヤーにルートを設定
+    if ((gameSession as any).is_multiplayer) {
+      setPlayers((prevPlayers) => {
+        const updatedPlayers = prevPlayers.map((p) => {
+          // 既に移動中で目的地が異なる場合はそのまま（先に到着した人が新しい目的地を選んだ場合）
+          // route_spacesがnullまたは目的地に到達済みの場合は新しいルートを設定
+          if (p.route_spaces === null || p.current_space_number >= (p.route_spaces?.length || 0)) {
+            return {
+              ...p,
+              route_spaces: spaces,
+              current_space_number: 0,
+            };
+          }
+          return p;
+        });
+        if (currentTurnPlayer) {
+          setCurrentTurnPlayer(updatedPlayers.find(p => p.id === currentTurnPlayer.id) || currentTurnPlayer);
+        }
+        console.log(`共通目的地を設定: ${destination.city}`);
+        return updatedPlayers;
+      });
+    }
 
     // 目的地紹介画面へ遷移
     setScreenState('destination_intro');
@@ -317,22 +451,48 @@ function GameContent() {
   const handleMovementRouletteComplete = async (result: number) => {
     console.log('Movement roulette result:', result, 'spaces');
 
-    if (!destinationAirport || routeSpaces.length === 0) {
-      console.error('No destination or route spaces');
+    // プレイヤー状態から情報を取得（プレイヤー状態が唯一の真実）
+    if (!destinationAirport || !currentTurnPlayer?.route_spaces) {
+      console.error('No destination or route in current player state');
       return;
+    }
+
+    // グローバル状態とプレイヤー状態を同期（既に共通目的地を使用しているので同期は不要）
+    // ルートとマス数は同期
+    if (!routeSpaces || routeSpaces.length === 0) {
+      setRouteSpaces(currentTurnPlayer.route_spaces);
+    }
+    if (currentSpaceNumber !== currentTurnPlayer.current_space_number) {
+      setCurrentSpaceNumber(currentTurnPlayer.current_space_number);
     }
 
     // マス進行音を再生（カチッカチッカチッ）
     playDiceSteps(result);
 
     // マス数を進める
-    const newSpaceNumber = currentSpaceNumber + result;
-    console.log(`Moving from space ${currentSpaceNumber} to ${newSpaceNumber} (total spaces: ${routeSpaces.length})`);
+    const newSpaceNumber = currentTurnPlayer.current_space_number + result;
+    const totalSpaces = currentTurnPlayer.route_spaces.length;
+    console.log(`Moving from space ${currentTurnPlayer.current_space_number} to ${newSpaceNumber} (total spaces: ${totalSpaces})`);
 
     // 目的地到達チェック
-    if (newSpaceNumber >= routeSpaces.length) {
+    if (newSpaceNumber >= totalSpaces) {
       // 到達！最終マスに設定
-      setCurrentSpaceNumber(routeSpaces.length);
+      setCurrentSpaceNumber(totalSpaces);
+
+      // プレイヤー状態も更新（到達済みにする）
+      setPlayers((prevPlayers) => {
+        const arrivedPlayers = prevPlayers.map((p) =>
+          p.id === currentTurnPlayer.id
+            ? {
+                ...p,
+                current_space_number: totalSpaces,
+              }
+            : p
+        );
+        setCurrentTurnPlayer(arrivedPlayers.find(p => p.id === currentTurnPlayer.id) || currentTurnPlayer);
+        return arrivedPlayers;
+      });
+
       console.log(`Arrived at destination!`);
 
       // 到着ファンファーレを再生
@@ -343,6 +503,13 @@ function GameContent() {
         setLoading(true);
         console.log('=== 到着地データ取得 ===');
         console.log(`目的地: ${destinationAirport.city}, ${destinationAirport.country}`);
+
+        // 先行到着者かどうかを判定
+        const currentDestId = destinationAirport.id;
+        const currentSelections = destinationSelections[currentDestId] || { arrivedPlayers: [] };
+        const isFirstArrival = currentSelections.arrivedPlayers.length === 0;
+
+        console.log(`到着判定: ${isFirstArrival ? '先行到着者' : '後続到着者'} (${currentSelections.arrivedPlayers.length}人目)`);
 
         const [attractions, arts, gourmets] = await Promise.all([
           getAttractionsByCountry(destinationAirport.country),
@@ -365,42 +532,63 @@ function GameContent() {
           console.warn(`⚠️ ${destinationAirport.country}のグルメデータがありません`);
         }
 
+        // 後続到着者の場合は選択済みアイテムを除外
+        let availableAttractions = attractions;
+        let availableArts = arts;
+        let availableGourmets = gourmets;
+
+        if (!isFirstArrival) {
+          // 選択済みアイテムを除外
+          if (currentSelections.selectedAttraction) {
+            availableAttractions = attractions.filter(a => a.id !== currentSelections.selectedAttraction);
+            console.log(`名所から選択済みを除外: ${availableAttractions.length}/${attractions.length}件`);
+          }
+          if (currentSelections.selectedArt) {
+            availableArts = arts.filter(a => a.id !== currentSelections.selectedArt);
+            console.log(`アートから選択済みを除外: ${availableArts.length}/${arts.length}件`);
+          }
+          if (currentSelections.selectedGourmet) {
+            availableGourmets = gourmets.filter(g => g.id !== currentSelections.selectedGourmet);
+            console.log(`グルメから選択済みを除外: ${availableGourmets.length}/${gourmets.length}件`);
+          }
+        }
+
         // 各カテゴリから選択
         // データがない場合は、この地域用の仮データを生成
-        let randomAttraction = attractions.length > 0
-          ? attractions[Math.floor(Math.random() * attractions.length)]
+        let randomAttraction = availableAttractions.length > 0
+          ? availableAttractions[Math.floor(Math.random() * availableAttractions.length)]
           : {
               id: 'temp-attraction',
               name: `${destinationAirport.city}の名所`,
               name_ja: `${destinationAirport.city}の名所`,
               country: destinationAirport.country,
-              impressed_points: 20,
+              impressed_points: 50,
               description: `${destinationAirport.city}を代表する素晴らしい観光地です。`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             } as Attraction;
 
-        let randomArt = arts.length > 0
-          ? arts[Math.floor(Math.random() * arts.length)]
+        let randomArt = availableArts.length > 0
+          ? availableArts[Math.floor(Math.random() * availableArts.length)]
           : {
               id: 'temp-art',
               name: `${destinationAirport.city}の芸術作品`,
               name_ja: `${destinationAirport.city}の芸術作品`,
               city: destinationAirport.city,
-              impressed_points: 15,
+              impressed_points: 50,
               description: `${destinationAirport.city}で鑑賞できる美しい芸術作品です。`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             } as Art;
 
-        let randomGourmet = gourmets.length > 0
-          ? gourmets[Math.floor(Math.random() * gourmets.length)]
+        let randomGourmet = availableGourmets.length > 0
+          ? availableGourmets[Math.floor(Math.random() * availableGourmets.length)]
           : {
               id: 'temp-gourmet',
               name: `${destinationAirport.city}の郷土料理`,
               name_ja: `${destinationAirport.city}の郷土料理`,
               country: destinationAirport.country,
-              impressed_points: 18,
+              impressed_points: 50,
               description: `${destinationAirport.city}で味わえる美味しい料理です。`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
@@ -431,7 +619,9 @@ function GameContent() {
           setCurrentEventIndex(0);
           setScreenState('events');
         } else {
-          performMove(destinationAirport, travelDistance, stayDays);
+          const distance = calculateDistance(currentAirport!, destinationAirport);
+          const days = calculateStayDays(distance);
+          performMove(destinationAirport, distance, days);
         }
       } finally {
         setLoading(false);
@@ -439,7 +629,28 @@ function GameContent() {
     } else {
       // まだ到達していない - マス数を更新して移動中イベントを生成
       setCurrentSpaceNumber(newSpaceNumber);
-      console.log(`Not yet arrived. Current space: ${newSpaceNumber}/${routeSpaces.length}`);
+      console.log(`Not yet arrived. Current space: ${newSpaceNumber}/${totalSpaces}`);
+
+      // Multiplayer: 現在のプレイヤーの位置を更新
+      if ((gameSession as any).is_multiplayer && currentTurnPlayer) {
+        setPlayers((prevPlayers) => {
+          const updatedPlayers = prevPlayers.map((p) =>
+            p.id === currentTurnPlayer.id
+              ? {
+                  ...p,
+                  current_space_number: newSpaceNumber,
+                }
+              : p
+          );
+
+          // currentTurnPlayerも更新
+          const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
+          if (updatedCurrentPlayer) {
+            setCurrentTurnPlayer(updatedCurrentPlayer);
+          }
+          return updatedPlayers;
+        });
+      }
 
       // 移動中のイベントを生成
       const travelEvents = await generateTravelEvents();
@@ -449,8 +660,16 @@ function GameContent() {
         setCurrentEventIndex(0);
         setScreenState('events');
       } else {
-        // イベントがない場合は移動ルーレットに戻る
-        setScreenState('movement_roulette');
+        // Multiplayer: イベントがない場合は即座にターン交代
+        if ((gameSession as any).is_multiplayer && currentTurnPlayer) {
+          console.log('マス移動完了: 自動的に次のプレイヤーへ');
+          setScreenState('map');
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await switchToNextTurn();
+        } else {
+          // シングルプレイヤー: 移動ルーレットに戻る
+          setScreenState('movement_roulette');
+        }
       }
     }
   };
@@ -458,6 +677,72 @@ function GameContent() {
   // 到着選択ハンドラー
   const handleArrivalSelection = async (option: { type: 'attraction' | 'art' | 'gourmet'; data: any }) => {
     console.log('Selected arrival option:', option.type);
+
+    // 先行到着ボーナスポイントを計算
+    let arrivalBonus = 0;
+    if (destinationAirport && currentTurnPlayer) {
+      const destId = destinationAirport.id;
+      const currentSelections = destinationSelections[destId] || { arrivedPlayers: [] };
+      const isFirstArrival = currentSelections.arrivedPlayers.length === 0;
+
+      // 先行到着者の場合、移動距離に応じてボーナスポイント
+      if (isFirstArrival) {
+        if (travelDistance < 500) {
+          arrivalBonus = 100;
+        } else if (travelDistance < 1000) {
+          arrivalBonus = 150;
+        } else {
+          arrivalBonus = 200;
+        }
+        console.log(`先行到着ボーナス: ${arrivalBonus}pt (距離: ${travelDistance}km)`);
+      }
+
+      // 選択済みアイテムを更新
+      const updatedSelections = {
+        ...currentSelections,
+        arrivedPlayers: [...currentSelections.arrivedPlayers, currentTurnPlayer.id],
+      };
+
+      // 選択されたアイテムのIDを記録
+      if (option.type === 'attraction') {
+        updatedSelections.selectedAttraction = option.data.id;
+      } else if (option.type === 'art') {
+        updatedSelections.selectedArt = option.data.id;
+      } else if (option.type === 'gourmet') {
+        updatedSelections.selectedGourmet = option.data.id;
+      }
+
+      setDestinationSelections({
+        ...destinationSelections,
+        [destId]: updatedSelections,
+      });
+
+      console.log(`選択を記録: ${option.type} = ${option.data.id} (到着者数: ${updatedSelections.arrivedPlayers.length})`);
+
+      // 先行到着ボーナスをプレイヤーに即座に加算
+      if (arrivalBonus > 0) {
+        setPlayers((prevPlayers) => {
+          const updatedPlayers = prevPlayers.map((p) =>
+            p.id === currentTurnPlayer.id
+              ? {
+                  ...p,
+                  impressed_points: p.impressed_points + arrivalBonus,
+                  total_points: p.total_points + arrivalBonus,
+                }
+              : p
+          );
+
+          // currentTurnPlayerも更新
+          const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
+          if (updatedCurrentPlayer) {
+            setCurrentTurnPlayer(updatedCurrentPlayer);
+          }
+
+          console.log(`プレイヤー ${currentTurnPlayer.player_nickname} に先行到着ボーナス ${arrivalBonus}pt を付与`);
+          return updatedPlayers;
+        });
+      }
+    }
 
     // 選択したイベントを作成
     const selectedEvent: GameEvent = {
@@ -477,7 +762,7 @@ function GameContent() {
   };
 
   // イベント完了時
-  const handleEventClose = () => {
+  const handleEventClose = async () => {
     const currentEvent = pendingEvents[currentEventIndex];
 
     // ポイント計算
@@ -492,6 +777,31 @@ function GameContent() {
     // ポイント更新
     if (points.impressed !== 0 || points.giver !== 0) {
       updatePoints(points.impressed, points.giver);
+
+      // Multiplayer: 現在のターンプレイヤーのポイントを更新
+      if ((gameSession as any).is_multiplayer && currentTurnPlayer) {
+        setPlayers((prevPlayers) => {
+          const updatedPlayers = prevPlayers.map((p) =>
+            p.id === currentTurnPlayer.id
+              ? {
+                  ...p,
+                  impressed_points: p.impressed_points + points.impressed,
+                  giver_points: p.giver_points + points.giver,
+                  total_points: p.total_points + points.impressed + points.giver,
+                }
+              : p
+          );
+
+          // currentTurnPlayerも更新
+          const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
+          if (updatedCurrentPlayer) {
+            setCurrentTurnPlayer(updatedCurrentPlayer);
+          }
+
+          console.log(`${currentTurnPlayer.player_nickname} にポイント追加: +${points.impressed + points.giver}ポイント (感銘: ${points.impressed}, 感謝: ${points.giver})`);
+          return updatedPlayers;
+        });
+      }
     }
 
     // 次のイベントへ
@@ -502,15 +812,53 @@ function GameContent() {
       setPendingEvents([]);
       setCurrentEventIndex(0);
 
-      // 目的地に到達しているかチェック
-      if (destinationAirport && currentSpaceNumber >= routeSpaces.length) {
+      // 目的地に到達しているかチェック（プレイヤー状態から判定）
+      // 重要: currentTurnPlayerではなくplayers配列から最新の状態を取得
+      const latestPlayer = players.find(p => p.id === currentTurnPlayer?.id);
+      console.log('handleEventClose: 到着チェック', {
+        latestPlayer: latestPlayer?.player_nickname,
+        current_space_number: latestPlayer?.current_space_number,
+        route_length: latestPlayer?.route_spaces?.length,
+        destination: destinationAirport?.city,
+      });
+
+      if (destinationAirport &&
+          latestPlayer &&
+          latestPlayer.route_spaces &&
+          latestPlayer.current_space_number >= latestPlayer.route_spaces.length) {
         // 到達済み - 移動完了
-        performMove(destinationAirport, travelDistance, stayDays);
-      } else if (destinationAirport) {
-        // まだ到達していない - 移動ルーレットに戻る
-        console.log(`Returning to movement roulette. Current: ${currentSpaceNumber}/${routeSpaces.length}`);
-        setScreenState('movement_roulette');
+        const destination = destinationAirport;
+        if (destination && currentAirport) {
+          const distance = calculateDistance(currentAirport, destination);
+          const days = calculateStayDays(distance);
+          await performMove(destination, distance, days);
+
+          // マルチプレイヤー: 目的地到着後、次のターンへ切り替え
+          if ((gameSession as any).is_multiplayer) {
+            console.log('目的地到着完了: 次のプレイヤーのターンへ');
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await switchToNextTurn();
+          }
+        }
+      } else if (destinationAirport &&
+                 latestPlayer &&
+                 latestPlayer.route_spaces &&
+                 latestPlayer.current_space_number < latestPlayer.route_spaces.length) {
+        // まだ目的地に到達していない場合
+        if ((gameSession as any).is_multiplayer) {
+          // マルチプレイヤー: 次のターンへ切り替え
+          console.log('イベント完了（未到達）: 次のプレイヤーのターンへ');
+          setScreenState('map');
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await switchToNextTurn();
+        } else {
+          // シングルプレイヤー: 移動ルーレットに戻る
+          console.log(`Returning to movement roulette. Current: ${latestPlayer?.current_space_number}/${latestPlayer?.route_spaces?.length}`);
+          setScreenState('movement_roulette');
+        }
       } else {
+        // 目的地がない、または予期しない状態
+        console.log('イベント完了: マップに戻る');
         setScreenState('map');
       }
     }
@@ -521,6 +869,600 @@ function GameContent() {
     setSelectedGiverPoints(points);
     handleEventClose();
   };
+
+  // ターン切り替え処理（シンプル版）
+  const switchToNextTurn = async () => {
+    if (!currentTurnPlayer || players.length === 0) {
+      console.log('Cannot switch turn: missing data');
+      return;
+    }
+
+    console.log(`${currentTurnPlayer.player_nickname} のターン終了`);
+
+    // 次のプレイヤーへ切り替え
+    const currentIndex = players.findIndex((p) => p.id === currentTurnPlayer.id);
+    const nextIndex = (currentIndex + 1) % players.length;
+    const nextPlayer = players[nextIndex];
+
+    console.log(`次のターン: ${nextPlayer.player_nickname} (${nextPlayer.player_type})`);
+
+    // ターンプレイヤーを更新
+    setCurrentTurnPlayer(nextPlayer);
+
+    // ゲームセッションのターン番号を更新
+    const updatedSession = {
+      ...gameSession,
+      current_turn_order: nextPlayer.player_order,
+    } as any;
+    setGameSession(updatedSession);
+
+    // フリーマンのターンの場合は自動実行
+    if (nextPlayer.player_type !== 'human') {
+      console.log(`フリーマンの自動ターン開始: ${nextPlayer.player_nickname}`);
+      await executeFreemanTurn(nextPlayer);
+    }
+  };
+
+  // ターン終了処理
+  const handleEndTurn = async () => {
+    console.log('=== handleEndTurn called ===');
+    console.log('gameSession:', gameSession);
+    console.log('currentTurnPlayer:', currentTurnPlayer);
+    console.log('players:', players);
+
+    if (!gameSession || !currentTurnPlayer || players.length === 0) {
+      console.log('Missing required data, returning');
+      return;
+    }
+
+    console.log(`${currentTurnPlayer.player_nickname} のターン終了`);
+
+    // 次のプレイヤーへ切り替え
+    const currentIndex = players.findIndex((p) => p.id === currentTurnPlayer.id);
+    const nextIndex = (currentIndex + 1) % players.length;
+    const nextPlayer = players[nextIndex];
+
+    console.log(`次のターン: ${nextPlayer.player_nickname} (${nextPlayer.player_type})`);
+
+    // ターンプレイヤーを更新
+    setCurrentTurnPlayer(nextPlayer);
+
+    // ゲームセッションのターン番号を更新
+    const updatedSession = {
+      ...gameSession,
+      current_turn_order: nextPlayer.player_order,
+    };
+    setGameSession(updatedSession);
+
+    // フリーマンのターンの場合は自動実行
+    if (nextPlayer.player_type !== 'human') {
+      console.log(`フリーマンの自動ターン開始: ${nextPlayer.player_nickname}`);
+      await executeFreemanTurn(nextPlayer);
+    }
+  };
+
+  // フリーマンのサイコロ完了ハンドラー
+  const handleFreemanDiceComplete = async (diceResult: number) => {
+    console.log(`========================================`);
+    console.log(`🎲 handleFreemanDiceComplete 呼び出し`);
+    console.log(`サイコロの目: ${diceResult}`);
+    console.log(`========================================`);
+
+    // 二重実行防止
+    if (freemanDiceProcessing) {
+      console.log('フリーマンAI: サイコロ処理中のため、二重実行をスキップ');
+      return;
+    }
+
+    console.log(`フリーマンAI: サイコロ完了 - ${diceResult}`);
+    setFreemanDiceProcessing(true);
+
+    // 即座にサイコロ表示を停止
+    setFreemanRollingDice(false);
+
+    setFreemanActionMessage(`🎲 サイコロの目: ${diceResult}`);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // フリーマンプレイヤーを取得
+    const freemanPlayer = players.find((p) => p.player_type !== 'human');
+    console.log(`フリーマンプレイヤー検索結果:`, freemanPlayer ? `ID: ${freemanPlayer.id}, タイプ: ${freemanPlayer.player_type}` : 'null');
+    if (!freemanPlayer) {
+      console.error(`❌ フリーマンプレイヤーが見つかりません！`);
+      setFreemanDiceProcessing(false);
+      return;
+    }
+
+    console.log(`フリーマンの route_spaces:`, freemanPlayer.route_spaces ? `${freemanPlayer.route_spaces.length}マス` : 'null');
+    console.log(`フリーマンの現在位置: ${freemanPlayer.current_space_number}`);
+
+    // マス数を進める
+    if (freemanPlayer.route_spaces && freemanPlayer.route_spaces.length > 0) {
+      const newSpaceNumber = Math.min(
+        freemanPlayer.current_space_number + diceResult,
+        freemanPlayer.route_spaces.length
+      );
+
+      setFreemanActionMessage(`✈️ ${diceResult}マス進みます (${freemanPlayer.current_space_number} → ${newSpaceNumber})`);
+
+      // フリーマンの位置を更新（ポイントはイベント時に加算）
+      const updatedPlayers = players.map((p) =>
+        p.id === freemanPlayer.id
+          ? {
+              ...p,
+              current_space_number: newSpaceNumber,
+            }
+          : p
+      );
+      setPlayers(updatedPlayers);
+
+      // currentTurnPlayerも更新
+      const updatedFreeman = updatedPlayers.find(p => p.id === freemanPlayer.id);
+      if (updatedFreeman) {
+        setCurrentTurnPlayer(updatedFreeman);
+      }
+
+      console.log(`フリーマンAI: ${diceResult}マス進行 → 位置${newSpaceNumber}/${freemanPlayer.route_spaces.length}`);
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // 目的地到達チェック
+      console.log(`========================================`);
+      console.log(`🎯 フリーマンAI: 到達チェック`);
+      console.log(`現在位置: ${newSpaceNumber}, 総マス数: ${freemanPlayer.route_spaces.length}`);
+      console.log(`到達判定: ${newSpaceNumber >= freemanPlayer.route_spaces.length ? '✅ 到達' : '❌ 未到達'}`);
+      console.log(`========================================`);
+
+      if (newSpaceNumber >= freemanPlayer.route_spaces.length) {
+        console.log(`✅ フリーマンAI: 目的地到達確認！`);
+        // フリーマンのroute_spacesの最終地点から到着した空港を特定
+        const finalRouteSpace = freemanPlayer.route_spaces[freemanPlayer.route_spaces.length - 1];
+
+        // 最終地点に最も近い空港を見つける（これがフリーマンの到着地）
+        const arrivedAirport = airports.reduce((nearest, airport) => {
+          const distToCurrent = Math.sqrt(
+            Math.pow(airport.latitude - finalRouteSpace.lat, 2) +
+            Math.pow(airport.longitude - finalRouteSpace.lng, 2)
+          );
+          const distToNearest = Math.sqrt(
+            Math.pow(nearest.latitude - finalRouteSpace.lat, 2) +
+            Math.pow(nearest.longitude - finalRouteSpace.lng, 2)
+          );
+          return distToCurrent < distToNearest ? airport : nearest;
+        }, airports[0]);
+
+        if (arrivedAirport) {
+          console.log(`=== フリーマンAI: 目的地到着処理開始 ===`);
+          console.log(`フリーマンAI: 到着地 - ${arrivedAirport.name} (${arrivedAirport.city})`);
+
+          // 到着ファンファーレを再生（await で完了を待つ）
+          try {
+            console.log(`フリーマンAI: ファンファーレ再生開始`);
+            await playFanfare();
+            console.log(`フリーマンAI: ファンファーレ再生完了`);
+          } catch (fanfareError) {
+            console.error(`フリーマンAI: ファンファーレ再生エラー:`, fanfareError);
+          }
+
+          setFreemanActionMessage(`🎉 ${arrivedAirport.city} に到着しました!`);
+
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // 到着選択処理
+          try {
+            console.log(`フリーマンAI: 到着選択処理開始`);
+            setFreemanActionMessage('📋 到着体験を選択中...');
+
+            // 先行到着者かどうかを判定（到着した空港IDで判定）
+            const currentDestId = arrivedAirport.id;
+            const currentSelections = destinationSelections[currentDestId] || { arrivedPlayers: [] };
+            const isFirstArrival = currentSelections.arrivedPlayers.length === 0;
+
+            console.log(`フリーマンAI到着判定: ${isFirstArrival ? '先行到着者' : '後続到着者'} (${currentSelections.arrivedPlayers.length}人目) at ${arrivedAirport.city}`);
+
+            // 到着オプションを取得
+            const [attractions, arts, gourmets] = await Promise.all([
+              getAttractionsByCountry(arrivedAirport.country),
+              getArtsByCity(arrivedAirport.city),
+              getGourmetByCountry(arrivedAirport.country),
+            ]);
+
+            console.log(`フリーマンAI: 名所${attractions.length}件, アート${arts.length}件, グルメ${gourmets.length}件`);
+
+            // 後続到着者の場合は選択済みアイテムを除外
+            let availableAttractions = attractions;
+            let availableArts = arts;
+            let availableGourmets = gourmets;
+
+            if (!isFirstArrival) {
+              if (currentSelections.selectedAttraction) {
+                availableAttractions = attractions.filter(a => a.id !== currentSelections.selectedAttraction);
+                console.log(`フリーマンAI: 名所から選択済みを除外: ${availableAttractions.length}/${attractions.length}件`);
+              }
+              if (currentSelections.selectedArt) {
+                availableArts = arts.filter(a => a.id !== currentSelections.selectedArt);
+                console.log(`フリーマンAI: アートから選択済みを除外: ${availableArts.length}/${arts.length}件`);
+              }
+              if (currentSelections.selectedGourmet) {
+                availableGourmets = gourmets.filter(g => g.id !== currentSelections.selectedGourmet);
+                console.log(`フリーマンAI: グルメから選択済みを除外: ${availableGourmets.length}/${gourmets.length}件`);
+              }
+            }
+
+            // ランダムに1つずつ選択（フォールバック用の仮データも生成）
+            const selectedAttraction = availableAttractions.length > 0
+              ? availableAttractions[Math.floor(Math.random() * availableAttractions.length)]
+              : {
+                  id: 'temp-attraction',
+                  name: `${arrivedAirport.city}の名所`,
+                  name_ja: `${arrivedAirport.city}の名所`,
+                  country: arrivedAirport.country,
+                  impressed_points: 50,
+                  description: `${arrivedAirport.city}を代表する素晴らしい観光地です。`,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                } as Attraction;
+
+            const selectedArt = availableArts.length > 0
+              ? availableArts[Math.floor(Math.random() * availableArts.length)]
+              : {
+                  id: 'temp-art',
+                  name: `${arrivedAirport.city}の芸術作品`,
+                  name_ja: `${arrivedAirport.city}の芸術作品`,
+                  city: arrivedAirport.city,
+                  impressed_points: 50,
+                  description: `${arrivedAirport.city}で鑑賞できる美しい芸術作品です。`,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                } as Art;
+
+            const selectedGourmet = availableGourmets.length > 0
+              ? availableGourmets[Math.floor(Math.random() * availableGourmets.length)]
+              : {
+                  id: 'temp-gourmet',
+                  name: `${arrivedAirport.city}の郷土料理`,
+                  name_ja: `${arrivedAirport.city}の郷土料理`,
+                  country: arrivedAirport.country,
+                  impressed_points: 50,
+                  description: `${arrivedAirport.city}で味わえる美味しい料理です。`,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                } as Gourmet;
+
+            // FreemanAIを使って最適な体験を選択
+            console.log(`フリーマンAI: AI選択開始`);
+            const freemanAI = new FreemanAI();
+            const selectedType = await freemanAI.selectExperience(
+              selectedAttraction,
+              selectedArt,
+              selectedGourmet
+            );
+            console.log(`フリーマンAI: AI選択完了 - タイプ: ${selectedType}`);
+
+            // 選択された体験を取得
+            let selectedExperience: Attraction | Art | Gourmet;
+            let selectedId: string;
+            let points: number;
+
+            if (selectedType === 'attraction') {
+              selectedExperience = selectedAttraction;
+              selectedId = selectedAttraction.id;
+              // フリーマンはイベントがないため、到着ポイントを1.5倍
+              points = Math.round(selectedAttraction.impressed_points * 1.5);
+              console.log(`フリーマンAI: 名所選択 - ${selectedAttraction.name_ja || selectedAttraction.name} (+${points}pt [1.5倍])`);
+              setFreemanActionMessage(`✨ ${selectedAttraction.name_ja || selectedAttraction.name} を体験 (+${points}pt)`);
+            } else if (selectedType === 'art') {
+              selectedExperience = selectedArt;
+              selectedId = selectedArt.id;
+              // フリーマンはイベントがないため、到着ポイントを1.5倍
+              points = Math.round(selectedArt.impressed_points * 1.5);
+              console.log(`フリーマンAI: アート選択 - ${selectedArt.name_ja || selectedArt.name} (+${points}pt [1.5倍])`);
+              setFreemanActionMessage(`🎨 ${selectedArt.name_ja || selectedArt.name} を鑑賞 (+${points}pt)`);
+            } else {
+              selectedExperience = selectedGourmet;
+              selectedId = selectedGourmet.id;
+              // フリーマンはイベントがないため、到着ポイントを1.5倍
+              points = Math.round(selectedGourmet.impressed_points * 1.5);
+              console.log(`フリーマンAI: グルメ選択 - ${selectedGourmet.name_ja || selectedGourmet.name} (+${points}pt [1.5倍])`);
+              setFreemanActionMessage(`🍴 ${selectedGourmet.name_ja || selectedGourmet.name} を堪能 (+${points}pt)`);
+            }
+
+            console.log(`フリーマンAI選択完了: ${selectedType} - ${selectedExperience.name_ja || selectedExperience.name} (+${points}pt)`);
+
+            // 先行到着ボーナスポイントを計算（移動距離はroute_spacesから推定）
+            let arrivalBonus = 0;
+            if (isFirstArrival) {
+              const travelDistanceEstimate = freemanPlayer.route_spaces.length * 500; // 500km/マス
+              if (travelDistanceEstimate < 500) {
+                arrivalBonus = 100;
+              } else if (travelDistanceEstimate < 1000) {
+                arrivalBonus = 150;
+              } else {
+                arrivalBonus = 200;
+              }
+              console.log(`フリーマンAI先行到着ボーナス: ${arrivalBonus}pt (推定距離: ${travelDistanceEstimate}km)`);
+              points += arrivalBonus; // 選択ポイントに加算
+              setFreemanActionMessage(`🎉 先行到着! +${arrivalBonus}pt ボーナス`);
+            }
+
+            // 選択を記録
+            const updatedSelections = {
+              ...currentSelections,
+              arrivedPlayers: [...currentSelections.arrivedPlayers, freemanPlayer.id],
+            };
+
+            if (selectedType === 'attraction') {
+              updatedSelections.selectedAttraction = selectedId;
+            } else if (selectedType === 'art') {
+              updatedSelections.selectedArt = selectedId;
+            } else if (selectedType === 'gourmet') {
+              updatedSelections.selectedGourmet = selectedId;
+            }
+
+            setDestinationSelections({
+              ...destinationSelections,
+              [currentDestId]: updatedSelections,
+            });
+
+            console.log(`フリーマンAI選択記録: ${selectedType} = ${selectedId} (到着者数: ${updatedSelections.arrivedPlayers.length})`);
+
+            // 経過日数の更新（フリーマンも滞在日数をカウント）
+            const startingAirport = airports.find(a => a.id === freemanPlayer.current_airport_id);
+            if (startingAirport) {
+              const distance = calculateDistance(startingAirport, arrivedAirport);
+              const stayDays = calculateStayDays(distance);
+              console.log(`フリーマンAI経過日数更新: ${distance.toFixed(0)}km → ${stayDays}日滞在`);
+              updateElapsedDays(stayDays);
+            }
+
+            // 先行プレイヤーが既に新しい目的地へ向かっているかチェック
+            const humanPlayer = updatedPlayers.find((p) => p.player_type === 'human');
+            let newRouteForFreeman: Array<{ lat: number; lng: number; spaceNumber: number }> | null = null;
+
+            if (humanPlayer && humanPlayer.route_spaces && humanPlayer.route_spaces.length > 0) {
+              // 人間プレイヤーが新しい目的地へ向かっている
+              const humanDestination = humanPlayer.route_spaces[humanPlayer.route_spaces.length - 1];
+
+              // フリーマンの到着地から人間プレイヤーの目的地への経路を計算
+              const freemanStartAirport = arrivedAirport;
+
+              if (freemanStartAirport) {
+                // 人間プレイヤーの目的地座標から最も近い空港を見つける
+                const targetAirport = airports.reduce((nearest, airport) => {
+                  const distToCurrent = Math.sqrt(
+                    Math.pow(airport.latitude - humanDestination.lat, 2) +
+                    Math.pow(airport.longitude - humanDestination.lng, 2)
+                  );
+                  const distToNearest = Math.sqrt(
+                    Math.pow(nearest.latitude - humanDestination.lat, 2) +
+                    Math.pow(nearest.longitude - humanDestination.lng, 2)
+                  );
+                  return distToCurrent < distToNearest ? airport : nearest;
+                }, airports[0]);
+
+                if (targetAirport && targetAirport.id !== arrivedAirport.id) {
+                  // フリーマンの到着地から人間プレイヤーの目的地への経路を計算
+                  newRouteForFreeman = calculateRouteSpaces(freemanStartAirport, targetAirport, 500);
+                  console.log(`フリーマンAI: 先行プレイヤーを追跡 ${arrivedAirport.city} → ${targetAirport.city} (${newRouteForFreeman.length}マス)`);
+                  setFreemanActionMessage(`🎯 次の目的地: ${targetAirport.city} を追跡中`);
+                }
+              }
+            }
+
+            // ポイント加算と到着処理: 現在地を更新、必要に応じて新しいルートを設定
+            setPlayers((prevPlayers) => {
+              const finalPlayers = prevPlayers.map((p) =>
+                p.id === freemanPlayer.id
+                  ? {
+                      ...p,
+                      current_airport_id: arrivedAirport.id,
+                      route_spaces: newRouteForFreeman,
+                      current_space_number: 0,
+                      impressed_points: p.impressed_points + points,
+                      total_points: p.total_points + points,
+                    }
+                  : p
+              );
+
+              // currentTurnPlayerも更新
+              const updatedFreemanPlayer = finalPlayers.find(p => p.id === freemanPlayer.id);
+              if (updatedFreemanPlayer) {
+                setCurrentTurnPlayer(updatedFreemanPlayer);
+              }
+              return finalPlayers;
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          } catch (err) {
+            console.error('========================================');
+            console.error('❌ フリーマンAI到着選択エラー:', err);
+            console.error('エラー詳細:', err instanceof Error ? err.message : String(err));
+            console.error('スタックトレース:', err instanceof Error ? err.stack : 'なし');
+            console.error('========================================');
+
+            // エラー時も先行プレイヤーを追跡
+            const humanPlayer = updatedPlayers.find((p) => p.player_type === 'human');
+            let newRouteForFreeman: Array<{ lat: number; lng: number; spaceNumber: number }> | null = null;
+
+            if (humanPlayer && humanPlayer.route_spaces && humanPlayer.route_spaces.length > 0) {
+              const humanDestination = humanPlayer.route_spaces[humanPlayer.route_spaces.length - 1];
+              const freemanStartAirport = arrivedAirport;
+
+              if (freemanStartAirport) {
+                const targetAirport = airports.reduce((nearest, airport) => {
+                  const distToCurrent = Math.sqrt(
+                    Math.pow(airport.latitude - humanDestination.lat, 2) +
+                    Math.pow(airport.longitude - humanDestination.lng, 2)
+                  );
+                  const distToNearest = Math.sqrt(
+                    Math.pow(nearest.latitude - humanDestination.lat, 2) +
+                    Math.pow(nearest.longitude - humanDestination.lng, 2)
+                  );
+                  return distToCurrent < distToNearest ? airport : nearest;
+                }, airports[0]);
+
+                if (targetAirport && targetAirport.id !== arrivedAirport.id) {
+                  newRouteForFreeman = calculateRouteSpaces(freemanStartAirport, targetAirport, 500);
+                  console.log(`フリーマンAI(エラー時): 先行プレイヤーを追跡 ${arrivedAirport.city} → ${targetAirport.city}`);
+                }
+              }
+            }
+
+            // 経過日数の更新（エラー時も到着は到着なので滞在日数をカウント）
+            const startingAirportError = airports.find(a => a.id === freemanPlayer.current_airport_id);
+            if (startingAirportError) {
+              const distance = calculateDistance(startingAirportError, arrivedAirport);
+              const stayDays = calculateStayDays(distance);
+              console.log(`フリーマンAI経過日数更新(エラー時): ${distance.toFixed(0)}km → ${stayDays}日滞在`);
+              updateElapsedDays(stayDays);
+            }
+
+            // エラー時も位置は更新し、必要に応じて新しいルートを設定
+            setPlayers((prevPlayers) => {
+              const finalPlayers = prevPlayers.map((p) =>
+                p.id === freemanPlayer.id
+                  ? {
+                      ...p,
+                      current_airport_id: arrivedAirport.id,
+                      route_spaces: newRouteForFreeman,
+                      current_space_number: 0,
+                    }
+                  : p
+              );
+
+              // currentTurnPlayerも更新
+              const updatedFreemanPlayer = finalPlayers.find(p => p.id === freemanPlayer.id);
+              if (updatedFreemanPlayer) {
+                setCurrentTurnPlayer(updatedFreemanPlayer);
+              }
+              return finalPlayers;
+            });
+          }
+        }
+      } else {
+        console.log(`ℹ️ フリーマンAI: まだ目的地に到達していません (${newSpaceNumber}/${freemanPlayer.route_spaces.length}マス)`);
+      }
+    } else {
+      console.error(`❌ フリーマンAI: route_spacesが無効です - route_spaces:`, freemanPlayer.route_spaces);
+    }
+
+    // 自動的に人間プレイヤーのターンへ戻る
+    setFreemanActionMessage('✅ フリーマンのターンが完了しました');
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // 人間プレイヤーを見つけて設定
+    const humanPlayer = players.find((p) => p.player_type === 'human');
+    if (humanPlayer) {
+      console.log('人間プレイヤーのターンに戻ります:', humanPlayer.player_nickname);
+      setFreemanActionMessage('');
+      setCurrentTurnPlayer(humanPlayer);
+
+      // ゲームセッションのターン番号を更新
+      const updatedSession = {
+        ...gameSession,
+        current_turn_order: humanPlayer.player_order,
+      } as any;
+      setGameSession(updatedSession);
+    }
+
+    // 処理完了フラグをリセット
+    setFreemanDiceProcessing(false);
+  };
+
+  // フリーマンの自動ターン実行
+  const executeFreemanTurn = async (freemanPlayer: any) => {
+    const freemanAI = new FreemanAI();
+
+    // 状態をリセット
+    setFreemanRollingDice(false);
+    setFreemanDiceProcessing(false);
+    setFreemanActionMessage('');
+    setScreenState('map'); // 画面をマップに戻す
+
+    // 少し待機（演出）
+    setFreemanActionMessage('🤖 フリーマンが行動を準備しています...');
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // フリーマンの現在地を取得
+    const freemanCurrentAirport = airports.find((a) => a.id === freemanPlayer.current_airport_id) || currentAirport;
+
+    // 目的地が未設定、またはフリーマンがルートを持っていない場合は選択
+    const needsNewRoute = !destinationAirport ||
+                          freemanPlayer.route_spaces === null ||
+                          freemanPlayer.current_space_number >= (freemanPlayer.route_spaces?.length || 0);
+
+    if (needsNewRoute) {
+      console.log('フリーマンAI: 目的地を選択中...');
+      setFreemanActionMessage('🎯 フリーマンが目的地を選んでいます...');
+
+      const availableAirports = airports.filter(
+        (a) => a.id !== freemanCurrentAirport?.id && !visitedAirportIds.includes(a.id)
+      );
+
+      if (availableAirports.length > 0) {
+        const destination = await freemanAI.selectDestination(
+          freemanPlayer,
+          availableAirports,
+          visitedAirportIds
+        );
+
+        console.log(`フリーマンAI: 共通目的地を選択 - ${destination.name}`);
+        setFreemanActionMessage(`🎯 目的地: ${destination.city}`);
+
+        // 共通目的地を設定
+        setDestinationAirport(destination);
+
+        // 新しい目的地の選択済みリストを初期化
+        setDestinationSelections({
+          ...destinationSelections,
+          [destination.id]: { arrivedPlayers: [] },
+        });
+        console.log(`新しい目的地の選択リストを初期化: ${destination.city}`);
+
+        // ルートを計算して全プレイヤーに設定
+        if (freemanCurrentAirport) {
+          const spaces = calculateRouteSpaces(freemanCurrentAirport, destination);
+
+          // 全プレイヤーに共通ルートを設定（到達済みのプレイヤーのみ）
+          setPlayers((prevPlayers: any[]) => {
+            const updatedPlayers = prevPlayers.map((p: any) => {
+              // ルートがnullまたは到達済みの場合のみ新しいルートを設定
+              if (p.route_spaces === null || p.current_space_number >= (p.route_spaces?.length || 0)) {
+                return {
+                  ...p,
+                  route_spaces: spaces,
+                  current_space_number: 0,
+                };
+              }
+              return p;
+            });
+            freemanPlayer = updatedPlayers.find((p: any) => p.id === freemanPlayer.id) || freemanPlayer;
+            return updatedPlayers;
+          });
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    }
+
+    // サイコロを振るアニメーションを開始
+    setFreemanActionMessage('🎲 サイコロを振ります...');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // サイコロ表示
+    console.log('フリーマンAI: サイコロ表示開始');
+    setFreemanRollingDice(true);
+  };
+
+  // ターン情報のデバッグログ
+  useEffect(() => {
+    if (gameSession && (gameSession as any).is_multiplayer) {
+      console.log('=== Turn Debug Info ===');
+      console.log('Current turn player:', currentTurnPlayer?.player_nickname, currentTurnPlayer?.player_type);
+      console.log('Screen state:', screenState);
+      console.log('Players count:', players.length);
+      console.log('Should show turn button:', screenState === 'map' && currentTurnPlayer?.player_type === 'human');
+    }
+  }, [gameSession, currentTurnPlayer, screenState, players]);
 
   // ゲーム終了チェック
   useEffect(() => {
@@ -599,9 +1541,9 @@ function GameContent() {
       {!audioInitialized && <AudioInitializer onInitialized={() => setAudioInitialized(true)} />}
 
       {/* ヘッダー: ポイントと進行状況 */}
-      <div className="p-4 bg-white dark:bg-gray-900 shadow-md">
+      <div className="p-2 bg-white dark:bg-gray-900 shadow-md">
         <div className="mobile-container">
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <PointsDisplay
@@ -628,6 +1570,38 @@ function GameContent() {
           </div>
         </div>
       </div>
+
+      {/* 複数プレイヤーUI */}
+      {(gameSession as any).is_multiplayer && players.length > 0 && currentTurnPlayer && (
+        <div className="p-2 space-y-2">
+          <TurnIndicator
+            currentTurnPlayer={currentTurnPlayer}
+            isHumanTurn={currentTurnPlayer.player_type === 'human'}
+          />
+          <PlayerList
+            players={players}
+            currentTurnPlayer={currentTurnPlayer}
+            airports={airports}
+            destinationAirport={destinationAirport}
+          />
+        </div>
+      )}
+
+      {/* フリーマンアクションメッセージ */}
+      {freemanActionMessage && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
+          <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl shadow-2xl p-8 min-w-[400px] animate-in zoom-in duration-300">
+            <div className="text-center">
+              <div className="text-4xl mb-4 animate-pulse">
+                {freemanActionMessage.split(' ')[0]}
+              </div>
+              <div className="text-xl font-bold">
+                {freemanActionMessage.substring(freemanActionMessage.indexOf(' ') + 1)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ゲームメニューモーダル */}
       {showGameMenu && (
@@ -678,9 +1652,9 @@ function GameContent() {
       )}
 
       {/* メインコンテンツ */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-2">
         <div className="mobile-container">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
             {/* 世界地図 */}
             <WorldMap
               currentAirport={currentAirport}
@@ -688,23 +1662,78 @@ function GameContent() {
               showRoute={!!destinationAirport}
               playerNickname={gameSession.player_nickname || 'プレイヤー1'}
               playerColor={gameSession.player_color || 'red'}
-              routeSpaces={routeSpaces}
-              currentSpace={currentSpaceNumber}
+              routeSpaces={currentTurnPlayer?.route_spaces || []}
+              currentSpace={currentTurnPlayer?.current_space_number || 0}
+              players={players}
+              currentPlayer={currentTurnPlayer || undefined}
+              airports={airports}
             />
 
             {/* 画面状態に応じた表示 */}
             {screenState === 'map' && (
               <div className="flex flex-col gap-3">
-                <Button
-                  onClick={() => setScreenState('destination_roulette')}
-                  size="lg"
-                  className="touch-target text-xl font-bold py-6 bg-gradient-to-r from-blue-500 to-purple-600"
-                >
-                  ✈️ 次の目的地へ
-                </Button>
-                <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-                  ルーレットで次の目的地を決めよう
-                </p>
+                {/* 人間プレイヤーのターンの場合 */}
+                {currentTurnPlayer && currentTurnPlayer.player_type === 'human' && (
+                  <>
+                    {/* 目的地未設定または到達済みの場合のみボタンを表示 */}
+                    {(!destinationAirport ||
+                      currentTurnPlayer.current_space_number >= (currentTurnPlayer.route_spaces?.length || 0)) && (
+                      <>
+                        <Button
+                          onClick={() => setScreenState('destination_roulette')}
+                          size="lg"
+                          className="touch-target text-xl font-bold py-6 bg-gradient-to-r from-blue-500 to-purple-600"
+                        >
+                          ✈️ 次の目的地へ
+                        </Button>
+                        <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+                          ルーレットで次の目的地を決めてください
+                        </p>
+                      </>
+                    )}
+                    {/* 移動中の場合は移動ルーレットへ遷移 */}
+                    {destinationAirport &&
+                      currentTurnPlayer.current_space_number < (currentTurnPlayer.route_spaces?.length || 0) && (
+                      <>
+                        <Button
+                          onClick={() => {
+                            // プレイヤーの状態から画面状態を復元
+                            const destination = destinationAirport;
+                            if (destination && currentTurnPlayer.route_spaces) {
+                              setDestinationAirport(destination);
+                              setRouteSpaces(currentTurnPlayer.route_spaces);
+                              setCurrentSpaceNumber(currentTurnPlayer.current_space_number);
+                              setScreenState('movement_roulette');
+                            }
+                          }}
+                          size="lg"
+                          className="touch-target text-xl font-bold py-6 bg-gradient-to-r from-orange-500 to-red-600"
+                        >
+                          🎲 移動を続ける
+                        </Button>
+                        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 text-center">
+                          <p className="text-lg font-bold text-orange-700 dark:text-orange-300 mb-2">
+                            📍 移動中: {currentTurnPlayer.current_space_number} / {currentTurnPlayer.route_spaces?.length || 0} マス
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            目的地: {destinationAirport?.city || '不明'}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+                {/* フリーマンのターンの場合は自動実行中メッセージ */}
+                {currentTurnPlayer && currentTurnPlayer.player_type !== 'human' && (
+                  <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 text-center">
+                    <p className="text-lg font-bold text-gray-700 dark:text-gray-300">
+                      🤖 {currentTurnPlayer.player_nickname}のターン
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                      自動実行中...
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -724,25 +1753,41 @@ function GameContent() {
                 <DestinationRoulette
                   availableAirports={availableAirports}
                   onDestinationSelected={handleDestinationSelected}
+                  destinationNumber={destinationCount + 1}
                 />
               );
             })()}
 
-            {screenState === 'movement_roulette' && (
+            {screenState === 'movement_roulette' && currentTurnPlayer && (
               <div className="flex flex-col gap-3">
                 <Dice3D
-                  key={`dice-${currentSpaceNumber}`}
+                  key={`dice-${currentTurnPlayer.current_space_number}`}
                   onRollComplete={handleMovementRouletteComplete}
                   disabled={false}
                 />
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-center">
                   <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mb-2">
-                    現在位置: {currentSpaceNumber} / {routeSpaces.length} マス
+                    現在位置: {currentTurnPlayer.current_space_number} / {currentTurnPlayer.route_spaces?.length || 0} マス
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    目的地まで残り {routeSpaces.length - currentSpaceNumber} マス
+                    目的地まで残り {(currentTurnPlayer.route_spaces?.length || 0) - currentTurnPlayer.current_space_number} マス
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* フリーマンのサイコロ */}
+            {freemanRollingDice && currentTurnPlayer?.player_type !== 'human' && (
+              <div className="flex flex-col gap-3">
+                <div className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl shadow-lg text-center mb-4">
+                  <p className="text-lg font-bold">🤖 フリーマンがサイコロを振っています...</p>
+                </div>
+                <Dice3D
+                  key={`freeman-dice-${currentTurnPlayer?.id}-${Date.now()}`}
+                  onRollComplete={handleFreemanDiceComplete}
+                  disabled={false}
+                  autoPlay={true}
+                />
               </div>
             )}
           </div>
@@ -755,6 +1800,7 @@ function GameContent() {
           airport={destinationAirport}
           distance={travelDistance}
           stayDays={stayDays}
+          destinationNumber={destinationCount}
           onContinue={handleDepartToDestination}
         />
       )}
@@ -767,7 +1813,11 @@ function GameContent() {
           attraction={arrivalAttraction}
           art={arrivalArt}
           gourmet={arrivalGourmet}
+          destinationNumber={destinationCount}
           onSelect={handleArrivalSelection}
+          selectedAttractionId={destinationSelections[destinationAirport.id]?.selectedAttraction}
+          selectedArtId={destinationSelections[destinationAirport.id]?.selectedArt}
+          selectedGourmetId={destinationSelections[destinationAirport.id]?.selectedGourmet}
         />
       )}
 

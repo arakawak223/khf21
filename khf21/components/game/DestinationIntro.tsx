@@ -8,6 +8,7 @@ interface DestinationIntroProps {
   airport: Airport;
   distance: number;
   stayDays: number;
+  destinationNumber: number; // 目的地の順番（1, 2, 3...）
   onContinue: () => void;
 }
 
@@ -25,6 +26,7 @@ export default function DestinationIntro({
   airport,
   distance,
   stayDays,
+  destinationNumber,
   onContinue,
 }: DestinationIntroProps) {
   return (
@@ -33,6 +35,9 @@ export default function DestinationIntro({
         <div className="p-6 space-y-4">
           {/* ヘッダー */}
           <div className="text-center space-y-2">
+            <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-bold mb-2">
+              🎯 目的地{destinationNumber}
+            </div>
             <div className="text-6xl mb-2">✈️</div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
               {airport.city}

@@ -15,7 +15,11 @@ interface ArrivalSelectionProps {
   attraction: Attraction | null;
   art: Art | null;
   gourmet: Gourmet | null;
+  destinationNumber: number; // 目的地の順番（1, 2, 3...）
   onSelect: (option: SelectionOption) => void;
+  selectedAttractionId?: string | null;
+  selectedArtId?: string | null;
+  selectedGourmetId?: string | null;
 }
 
 export default function ArrivalSelection({
@@ -24,7 +28,11 @@ export default function ArrivalSelection({
   attraction,
   art,
   gourmet,
+  destinationNumber,
   onSelect,
+  selectedAttractionId,
+  selectedArtId,
+  selectedGourmetId,
 }: ArrivalSelectionProps) {
   const options: SelectionOption[] = [];
 
@@ -97,12 +105,28 @@ export default function ArrivalSelection({
     return '';
   };
 
+  const isOptionSelected = (option: SelectionOption): boolean => {
+    switch (option.type) {
+      case 'attraction':
+        return selectedAttractionId === option.data.id;
+      case 'art':
+        return selectedArtId === option.data.id;
+      case 'gourmet':
+        return selectedGourmetId === option.data.id;
+      default:
+        return false;
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-6 space-y-6">
           {/* お祝いメッセージ */}
           <div className="text-center space-y-4">
+            <div className="inline-block bg-gradient-to-r from-green-500 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold mb-2">
+              🎯 目的地{destinationNumber}
+            </div>
             <div className="text-6xl animate-bounce">🎉</div>
             <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">
               到着おめでとうございます！
@@ -122,54 +146,77 @@ export default function ArrivalSelection({
 
           {/* 選択肢 */}
           <div className="space-y-4">
-            {options.map((option, index) => (
-              <div
-                key={index}
-                className="border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
-              >
-                <div className="p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">{getOptionEmoji(option.type)}</div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 bg-gradient-to-r ${getOptionColor(option.type)} text-white rounded text-xs font-bold`}>
-                            {getOptionLabel(option.type)}
-                          </span>
+            {options.map((option, index) => {
+              const isSelected = isOptionSelected(option);
+              return (
+                <div
+                  key={index}
+                  className={`border-2 rounded-lg transition-colors ${
+                    isSelected
+                      ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 opacity-60'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600'
+                  }`}
+                >
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`text-4xl ${isSelected ? 'grayscale' : ''}`}>
+                          {getOptionEmoji(option.type)}
                         </div>
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mt-1">
-                          {getName(option.data)}
-                        </h3>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 bg-gradient-to-r ${getOptionColor(option.type)} text-white rounded text-xs font-bold ${isSelected ? 'opacity-50' : ''}`}>
+                              {getOptionLabel(option.type)}
+                            </span>
+                            {isSelected && (
+                              <span className="px-2 py-1 bg-red-500 text-white rounded text-xs font-bold">
+                                選択済み
+                              </span>
+                            )}
+                          </div>
+                          <h3 className={`text-lg font-bold mt-1 ${isSelected ? 'text-gray-500 dark:text-gray-600' : 'text-gray-800 dark:text-gray-200'}`}>
+                            {getName(option.data)}
+                          </h3>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-2xl font-bold ${isSelected ? 'text-gray-400 dark:text-gray-600' : 'text-purple-600 dark:text-purple-400'}`}>
+                          +{getPoints(option.data)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          感動ポイント
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                        +{getPoints(option.data)}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        感動ポイント
-                      </div>
-                    </div>
+
+                    {/* 説明文 */}
+                    {getDescription(option.data) && (
+                      <p className={`text-sm line-clamp-2 ${isSelected ? 'text-gray-500 dark:text-gray-600' : 'text-gray-600 dark:text-gray-400'}`}>
+                        {getDescription(option.data)}
+                      </p>
+                    )}
+
+                    {/* 選択ボタン */}
+                    <Button
+                      onClick={() => onSelect(option)}
+                      disabled={isSelected}
+                      className={`w-full ${
+                        isSelected
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : `bg-gradient-to-r ${getOptionColor(option.type)} hover:opacity-90`
+                      }`}
+                      size="lg"
+                    >
+                      {isSelected ? (
+                        <>🚫 先行到達者が選択済み</>
+                      ) : (
+                        <>{getOptionEmoji(option.type)} {getOptionLabel(option.type)}を体験する</>
+                      )}
+                    </Button>
                   </div>
-
-                  {/* 説明文 */}
-                  {getDescription(option.data) && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                      {getDescription(option.data)}
-                    </p>
-                  )}
-
-                  {/* 選択ボタン */}
-                  <Button
-                    onClick={() => onSelect(option)}
-                    className={`w-full bg-gradient-to-r ${getOptionColor(option.type)} hover:opacity-90`}
-                    size="lg"
-                  >
-                    {getOptionEmoji(option.type)} {getOptionLabel(option.type)}を体験する
-                  </Button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* 選択肢がない場合 */}

@@ -138,6 +138,8 @@ class BGMManager {
     this.toneGenerator = new ToneGenerator();
     this.diceSoundGenerator = new DiceSoundGenerator();
     this.loadSettings();
+    // 初期化時にサイコロ音の音量とミュート状態を設定
+    this.diceSoundGenerator.setVolumeAndMute(this.volume * 0.4, this.isMuted);
   }
 
   /**
@@ -228,6 +230,12 @@ class BGMManager {
 
     this.currentScene = scene;
     const track = BGM_TRACKS[scene];
+
+    // trackが存在しない場合のチェック
+    if (!track) {
+      console.warn(`No BGM track found for scene: ${scene}`);
+      return;
+    }
 
     // MP3ファイルの読み込みを試行
     try {
@@ -374,6 +382,9 @@ class BGMManager {
     if (this.sfxAudio) {
       this.sfxAudio.volume = this.isMuted ? 0 : this.volume * 0.8;
     }
+
+    // サイコロ音も音量を更新
+    this.diceSoundGenerator.setVolumeAndMute(this.volume * 0.4, this.isMuted);
   }
 
   /**
@@ -382,18 +393,31 @@ class BGMManager {
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
     this.saveSettings();
+    console.log(`[BGMManager] toggleMute called - new state: ${this.isMuted}`);
+
+    // フェードインターバルをクリアして即座に音量を適用
+    if (this.fadeInterval) {
+      clearInterval(this.fadeInterval);
+      this.fadeInterval = null;
+      console.log(`[BGMManager] Cleared fade interval to apply mute immediately`);
+    }
 
     if (this.useToneGenerator) {
       this.toneGenerator.setVolume(this.isMuted ? 0 : this.volume);
     } else if (this.currentAudio && this.currentScene) {
       const track = BGM_TRACKS[this.currentScene];
       this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
+      console.log(`[BGMManager] Set audio volume to: ${this.currentAudio.volume} (muted: ${this.isMuted})`);
     }
 
     // 効果音も音量を更新
     if (this.sfxAudio) {
       this.sfxAudio.volume = this.isMuted ? 0 : this.volume * 0.8;
     }
+
+    // サイコロ音も音量を更新
+    this.diceSoundGenerator.setVolumeAndMute(this.volume * 0.4, this.isMuted);
+    console.log(`[BGMManager] DiceSoundGenerator updated - volume: ${this.volume * 0.4}, muted: ${this.isMuted}`);
 
     return this.isMuted;
   }

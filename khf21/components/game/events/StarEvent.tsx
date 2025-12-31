@@ -1,7 +1,9 @@
 'use client';
 
+import { useMemo } from 'react';
 import EventModal from '../EventModal';
 import type { Star } from '@/types/database.types';
+import { getStarEncounterScenario, type EncounterLocation } from '@/lib/game/starEncounterScenarios';
 
 interface StarEventProps {
   isOpen: boolean;
@@ -36,23 +38,33 @@ export default function StarEvent({
     return labels[loc] || '旅先';
   };
 
-  const getEncounterStory = () => {
-    const stories: Record<string, string> = {
-      airport: `${getLocationLabel(location)}のラウンジで、なんと${
-        star.name_ja || star.name
-      }に出会いました！気さくに話しかけてくれて、旅の話で盛り上がりました。`,
-      flight: `${getLocationLabel(location)}で隣の席に座っていたのは、なんと${
-        star.name_ja || star.name
-      }でした！フライト中に貴重な体験談を聞くことができました。`,
-      hotel: `${getLocationLabel(location)}のロビーで、${
-        star.name_ja || star.name
-      }に偶然出会いました！サインをもらい、一緒に写真を撮ることができました。`,
-      restaurant: `${getLocationLabel(location)}で食事をしていると、隣のテーブルに${
-        star.name_ja || star.name
-      }がいました！思い切って声をかけると、快く応じてくれました。`,
-    };
-    return stories[location] || '憧れのスターに出会えました！';
-  };
+  // シナリオをメモ化して、コンポーネントが再レンダリングされても同じシナリオを維持
+  const encounterScenario = useMemo(() => {
+    // location を EncounterLocation 型にマッピング
+    let encounterLocation: EncounterLocation;
+    switch (location) {
+      case 'airport':
+        encounterLocation = 'airport_lounge';
+        break;
+      case 'flight':
+        encounterLocation = 'flight';
+        break;
+      case 'hotel':
+        encounterLocation = 'hotel';
+        break;
+      case 'restaurant':
+        encounterLocation = 'restaurant';
+        break;
+      default:
+        encounterLocation = 'airport_lounge';
+    }
+
+    return getStarEncounterScenario(
+      encounterLocation,
+      star.name,
+      star.name_ja || star.name
+    );
+  }, [location, star.name, star.name_ja]);
 
   return (
     <EventModal
@@ -78,8 +90,9 @@ export default function StarEvent({
         </div>
 
         {/* 遭遇ストーリー */}
-        <div className="text-gray-700 dark:text-gray-300">
-          <p>{getEncounterStory()}</p>
+        <div className="text-gray-700 dark:text-gray-300 space-y-2">
+          <p>{encounterScenario.situation}</p>
+          <p>{encounterScenario.interaction}</p>
         </div>
 
         {/* 説明 */}

@@ -8,6 +8,7 @@ import {
   getTroubleResolution,
   getRandomEncouragementGratitudeScenario,
 } from './api';
+import { getRandomSpecialLifeEvent, type SpecialLifeEvent } from './specialLifeEvents';
 import type {
   Attraction,
   Star,
@@ -19,11 +20,11 @@ import type {
   EncouragementGratitudeScenario,
 } from '@/types/database.types';
 
-export type EventType = 'attraction' | 'star' | 'art' | 'gourmet' | 'trouble' | 'giver' | 'encouragement_gratitude';
+export type EventType = 'attraction' | 'star' | 'art' | 'gourmet' | 'trouble' | 'giver' | 'encouragement_gratitude' | 'special_life_event';
 
 export interface GameEvent {
   type: EventType;
-  data: Attraction | Star | Art | Gourmet | Trouble | GiverScenario | EncouragementGratitudeScenario;
+  data: Attraction | Star | Art | Gourmet | Trouble | GiverScenario | EncouragementGratitudeScenario | SpecialLifeEvent;
   troubleResolution?: TroubleResolution;
 }
 
@@ -42,23 +43,31 @@ export async function generateArrivalEvents(): Promise<GameEvent[]> {
     }
   }
 
+  // 特殊ライフイベント（5%の確率）
+  if (Math.random() < 0.05) {
+    const specialEvent = getRandomSpecialLifeEvent();
+    events.push({ type: 'special_life_event', data: specialEvent });
+  }
+
   return events;
 }
 
 /**
- * 移動中にイベントを生成
+ * 移動中にイベントを生成（機内イベント）
  */
 export async function generateTravelEvents(): Promise<GameEvent[]> {
   const events: GameEvent[] = [];
 
-  // 【一時的に無効化】基本機能のテスト中のため、イベントを発生させない
-  // TODO: 基本機能が安定したら再度有効化する
-
-  /*
   const eventRoll = Math.random();
 
-  if (eventRoll < 0.15) {
-    // 15%: トラブルイベント
+  // 機内で著名人との出会い（25%の確率）
+  if (eventRoll < 0.25) {
+    const star = await getRandomStar();
+    if (star) {
+      events.push({ type: 'star', data: star });
+    }
+  } else if (eventRoll < 0.35) {
+    // 10%: トラブルイベント
     const trouble = await getRandomTrouble();
     if (trouble) {
       const resolution = await getTroubleResolution(trouble.id);
@@ -68,18 +77,21 @@ export async function generateTravelEvents(): Promise<GameEvent[]> {
         troubleResolution: resolution || undefined,
       });
     }
-  } else if (eventRoll < 0.40) {
-    // 25%: 喜び提供イベント
+  } else if (eventRoll < 0.55) {
+    // 20%: 喜び提供イベント
     const giverScenario = generateGiverScenario();
     events.push({ type: 'giver', data: giverScenario });
-  } else if (eventRoll < 0.60) {
-    // 20%: 元気づけ/感謝イベント
+  } else if (eventRoll < 0.70) {
+    // 15%: 元気づけ/感謝イベント
     const scenario = await getRandomEncouragementGratitudeScenario();
     if (scenario) {
       events.push({ type: 'encouragement_gratitude', data: scenario });
     }
+  } else if (eventRoll < 0.78) {
+    // 8%: 特殊ライフイベント
+    const specialEvent = getRandomSpecialLifeEvent();
+    events.push({ type: 'special_life_event', data: specialEvent });
   }
-  */
 
   return events;
 }
@@ -96,11 +108,11 @@ function generateGiverScenario(): GiverScenario {
       situation_text:
         '空港で、地図を見ながら困っている外国人旅行者がいます。道に迷っているようです。',
       action_options: [
-        { text: '道案内をしてあげる', points: 30 },
-        { text: '地図アプリで場所を調べてあげる', points: 20 },
-        { text: '声をかけて励ます', points: 10 },
+        { text: '道案内をしてあげる', points: 25 },
+        { text: '地図アプリで場所を調べてあげる', points: 25 },
+        { text: '声をかけて励ます', points: 25 },
       ],
-      giver_points: 30,
+      giver_points: 25,
       feedback_text:
         '「ありがとうございます！あなたのおかげで無事に目的地に着けそうです。」旅行者は笑顔で感謝してくれました。',
       created_at: new Date().toISOString(),
@@ -114,8 +126,8 @@ function generateGiverScenario(): GiverScenario {
         '機内で、座席上の荷物棚に重いスーツケースを入れようとしている高齢者がいます。',
       action_options: [
         { text: '荷物を持ち上げて棚に入れてあげる', points: 25 },
-        { text: '客室乗務員を呼んであげる', points: 15 },
-        { text: '励ましの声をかける', points: 8 },
+        { text: '客室乗務員を呼んであげる', points: 25 },
+        { text: '励ましの声をかける', points: 25 },
       ],
       giver_points: 25,
       feedback_text:
@@ -125,16 +137,16 @@ function generateGiverScenario(): GiverScenario {
     },
     {
       id: 'temp-3',
-      title: '落ち込んでいる人',
-      location_type: 'restaurant' as const,
+      title: '機内で落ち込んでいる乗客',
+      location_type: 'flight' as const,
       situation_text:
-        'レストランで、一人で食事をしながら悲しそうな表情をしている人がいます。',
+        '機内で、窓際の席に座りながら悲しそうな表情でずっと外を見つめている人がいます。',
       action_options: [
-        { text: '優しく声をかけて話を聞いてあげる', points: 35 },
-        { text: '笑顔で挨拶をする', points: 15 },
-        { text: '温かい飲み物を差し入れる', points: 20 },
+        { text: '優しく声をかけて話を聞いてあげる', points: 25 },
+        { text: '笑顔で挨拶をして励ます', points: 25 },
+        { text: '客室乗務員に温かい飲み物を頼んであげる', points: 25 },
       ],
-      giver_points: 35,
+      giver_points: 25,
       feedback_text:
         '「話を聞いてくれてありがとう。少し気持ちが楽になりました。」その人は笑顔を取り戻しました。',
       created_at: new Date().toISOString(),
@@ -147,11 +159,11 @@ function generateGiverScenario(): GiverScenario {
       situation_text:
         'レストランで、外国人客と店員が言葉が通じずに困っています。',
       action_options: [
-        { text: '通訳を手伝ってあげる', points: 40 },
+        { text: '通訳を手伝ってあげる', points: 25 },
         { text: '翻訳アプリを使って助ける', points: 25 },
-        { text: '笑顔でジェスチャーを教える', points: 15 },
+        { text: '笑顔でジェスチャーを教える', points: 25 },
       ],
-      giver_points: 40,
+      giver_points: 25,
       feedback_text:
         '店員とお客さん両方から感謝されました。「あなたのおかげで注文できました！」',
       created_at: new Date().toISOString(),
@@ -201,6 +213,11 @@ export function calculateEventPoints(event: GameEvent, giverPoints?: number): {
       const scenario = event.data as EncouragementGratitudeScenario;
       impressed = scenario.impressed_points || 0;
       giver = scenario.giver_points || 0;
+      break;
+    case 'special_life_event':
+      const specialEvent = event.data as SpecialLifeEvent;
+      impressed = specialEvent.impressedPoints;
+      giver = specialEvent.giverPoints;
       break;
   }
 

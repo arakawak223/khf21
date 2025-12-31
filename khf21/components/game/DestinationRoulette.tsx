@@ -7,25 +7,31 @@ import type { Airport } from '@/types/database.types';
 interface DestinationRouletteProps {
   availableAirports: Airport[];
   onDestinationSelected: (airport: Airport) => void;
+  destinationNumber: number; // 次の目的地の順番（1, 2, 3...）
 }
 
 export default function DestinationRoulette({
   availableAirports,
   onDestinationSelected,
+  destinationNumber,
 }: DestinationRouletteProps) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAirport, setSelectedAirport] = useState<Airport | null>(null);
 
   // ルーレットを回す
-  const handleSpin = () => {
-    console.log('handleSpin called', { isSpinning, airportsCount: availableAirports.length });
+  const handleSpin = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('[DestinationRoulette] handleSpin called', { isSpinning, airportsCount: availableAirports.length });
     if (isSpinning || availableAirports.length === 0) {
-      console.log('Spin blocked:', { isSpinning, airportsCount: availableAirports.length });
+      console.log('[DestinationRoulette] Spin blocked:', { isSpinning, airportsCount: availableAirports.length });
       return;
     }
 
-    console.log('Starting spin...');
+    console.log('[DestinationRoulette] Starting spin...');
     setIsSpinning(true);
     setSelectedAirport(null);
 
@@ -89,6 +95,9 @@ export default function DestinationRoulette({
         >
           {/* トップネオンサイン */}
           <div className="text-center mb-6">
+            <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-bold mb-3">
+              🎯 次の目的地: 目的地{destinationNumber}
+            </div>
             <h2 className="text-4xl font-bold text-white neon-text mb-2">
               ✈️ DESTINATION ROULETTE
             </h2>
@@ -202,13 +211,19 @@ export default function DestinationRoulette({
           </div>
 
           {/* ボタンエリア */}
-          <div className="flex gap-4 relative z-10">
+          <div className="flex gap-4 relative z-50">
             {!selectedAirport ? (
               <Button
-                onClick={handleSpin}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[DestinationRoulette] Spin button clicked');
+                  handleSpin();
+                }}
                 disabled={isSpinning}
                 size="lg"
-                className="w-full touch-target text-2xl font-bold py-8 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20"
+                type="button"
+                className="w-full touch-target text-2xl font-bold py-8 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20 relative z-50"
                 style={{
                   boxShadow: '0 10px 40px rgba(147, 51, 234, 0.5)',
                 }}
@@ -217,9 +232,15 @@ export default function DestinationRoulette({
               </Button>
             ) : (
               <Button
-                onClick={() => onDestinationSelected(selectedAirport)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[DestinationRoulette] Confirm button clicked');
+                  onDestinationSelected(selectedAirport);
+                }}
                 size="lg"
-                className="w-full touch-target text-2xl font-bold py-8 bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-700 hover:via-green-700 hover:to-teal-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20"
+                type="button"
+                className="w-full touch-target text-2xl font-bold py-8 bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-700 hover:via-green-700 hover:to-teal-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20 relative z-50"
                 style={{
                   boxShadow: '0 10px 40px rgba(16, 185, 129, 0.5)',
                 }}

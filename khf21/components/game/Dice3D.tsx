@@ -1,374 +1,582 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
 import { Button } from '@/components/ui/button';
 
 interface Dice3DProps {
   onRollComplete: (result: number) => void;
   disabled?: boolean;
+  autoPlay?: boolean; // 自動実行モード（フリーマン用）
 }
 
-export default function Dice3D({ onRollComplete, disabled = false }: Dice3DProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isRolling, setIsRolling] = useState(false);
+export default function Dice3D({ onRollComplete, disabled = false, autoPlay = false }: Dice3DProps) {
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [canStop, setCanStop] = useState(false);
   const [result, setResult] = useState<number | null>(null);
+  const [rotation, setRotation] = useState(0);
+  const [showZoom, setShowZoom] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+  const animationRef = useRef<number | null>(null);
+  const speedRef = useRef(0);
+  const currentRotationRef = useRef(0); // 現在の回転角度を追跡
+  const decelerationRate = useRef(0.96); // 減速率（0.96 = 4%ずつ減速）
+  const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoPlayExecutedRef = useRef(false); // autoPlay実行済みフラグ
+  const isSpinningRef = useRef(false); // isSpinningの同期的な追跡用
 
-  // Three.jsとCannon.jsの参照
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const worldRef = useRef<CANNON.World | null>(null);
-  const diceBodyRef = useRef<CANNON.Body | null>(null);
-  const diceMeshRef = useRef<THREE.Mesh | null>(null);
-  const animationIdRef = useRef<number | null>(null);
+  const numbers = [1, 2, 3, 4, 5, 6];
+  const anglePerNumber = 360 / 6; // 60度ずつ
 
-  useEffect(() => {
-    if (!containerRef.current) return;
+  const handleStart = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('[Dice3D] handleStart called');
+    if (isSpinning || disabled) {
+      console.log('[Dice3D] Start blocked - isSpinning:', isSpinning, 'disabled:', disabled);
+      return;
+    }
 
-    // Three.jsのセットアップ
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a472a); // 緑のテーブルと同じ色
-    sceneRef.current = scene;
+    console.log('[Dice3D] Starting dice roll');
+    setIsSpinning(true);
+    isSpinningRef.current = true; // 同期的に追跡
+    setCanStop(false);
+    setResult(null);
+    setShowZoom(false); // ズーム表示をリセット
+    setDebugInfo(''); // デバッグ情報をリセット
+    speedRef.current = 30; // 初期速度（度/フレーム）
 
-    // Orthographicカメラ（真上から見下ろす、確実にサイコロが見える）
-    const aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
-    const frustumSize = 6;
-    const camera = new THREE.OrthographicCamera(
-      frustumSize * aspect / -2,
-      frustumSize * aspect / 2,
-      frustumSize / 2,
-      frustumSize / -2,
-      0.1,
-      1000
-    );
-    camera.position.set(2, 8, 2);
-    camera.lookAt(0, 0, 0);
-    cameraRef.current = camera as any;
+    // 0.5秒後にストップボタンを有効化
+    setTimeout(() => {
+      setCanStop(true);
+    }, 500);
 
-    // レンダラー
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-    renderer.shadowMap.enabled = true;
-    containerRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    // ライト
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 5);
-    directionalLight.castShadow = true;
-    scene.add(directionalLight);
-
-    // Cannon.jsの物理世界
-    const world = new CANNON.World();
-    world.gravity.set(0, -20, 0); // 適度な重力でしっかり転がる
-    worldRef.current = world;
-
-    // 床（物理）
-    const floorShape = new CANNON.Plane();
-    const floorBody = new CANNON.Body({ mass: 0 });
-    floorBody.addShape(floorShape);
-    floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-
-    // 床の材質（反発係数と摩擦を設定）
-    const floorMaterial = new CANNON.Material('floor');
-    floorBody.material = floorMaterial;
-
-    world.addBody(floorBody);
-
-    // 壁を追加してサイコロが画面外に出ないようにする
-    const wallMaterial = new CANNON.Material('wall');
-    const wallSize = 2.5;
-
-    // 4つの壁
-    const walls = [
-      { pos: [wallSize, 2, 0], rot: [0, Math.PI / 2, 0] }, // 右
-      { pos: [-wallSize, 2, 0], rot: [0, -Math.PI / 2, 0] }, // 左
-      { pos: [0, 2, wallSize], rot: [0, 0, 0] }, // 前
-      { pos: [0, 2, -wallSize], rot: [0, Math.PI, 0] }, // 後
-    ];
-
-    walls.forEach(({ pos, rot }) => {
-      const wallShape = new CANNON.Plane();
-      const wallBody = new CANNON.Body({ mass: 0 });
-      wallBody.addShape(wallShape);
-      wallBody.position.set(pos[0], pos[1], pos[2]);
-      wallBody.quaternion.setFromEuler(rot[0], rot[1], rot[2]);
-      wallBody.material = wallMaterial;
-      world.addBody(wallBody);
-    });
-
-    // 床（視覚）- コンパクトなテーブル
-    const floorGeometry = new THREE.PlaneGeometry(6, 6);
-    const floorMeshMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1a472a,
-      roughness: 0.8
-    });
-    const floorMesh = new THREE.Mesh(floorGeometry, floorMeshMaterial);
-    floorMesh.rotation.x = -Math.PI / 2;
-    floorMesh.receiveShadow = true;
-    scene.add(floorMesh);
-
-    // サイコロの作成
-    createDice();
-
-    // アニメーションループ
+    // 高速回転アニメーション開始
     const animate = () => {
-      animationIdRef.current = requestAnimationFrame(animate);
-
-      if (worldRef.current && diceMeshRef.current && diceBodyRef.current) {
-        // 物理演算を更新
-        worldRef.current.step(1 / 60);
-
-        // サイコロのメッシュを物理ボディと同期
-        diceMeshRef.current.position.copy(diceBodyRef.current.position as any);
-        diceMeshRef.current.quaternion.copy(diceBodyRef.current.quaternion as any);
-
-        // サイコロの速度チェック（停止判定）
-        // isRollingはstateなので、useRefで管理する
-        const velocity = diceBodyRef.current.velocity;
-        const angularVelocity = diceBodyRef.current.angularVelocity;
-        const speed = Math.sqrt(
-          velocity.x * velocity.x +
-          velocity.y * velocity.y +
-          velocity.z * velocity.z
-        );
-        const angularSpeed = Math.sqrt(
-          angularVelocity.x * angularVelocity.x +
-          angularVelocity.y * angularVelocity.y +
-          angularVelocity.z * angularVelocity.z
-        );
-
-        // 速度が十分に遅くなり、床の上にあったら停止と判定
-        if (speed < 0.05 && angularSpeed < 0.05 && diceBodyRef.current.position.y < 1.5 && diceBodyRef.current.position.y > 0.5) {
-          // 速度を完全に止める
-          diceBodyRef.current.velocity.set(0, 0, 0);
-          diceBodyRef.current.angularVelocity.set(0, 0, 0);
-        }
-      }
-
-      renderer.render(scene, camera);
+      currentRotationRef.current = (currentRotationRef.current + speedRef.current) % 360;
+      setRotation(currentRotationRef.current);
+      animationRef.current = requestAnimationFrame(animate);
     };
     animate();
+  };
 
-    // クリーンアップ
+  const handleStop = (e?: React.MouseEvent | boolean, forceStopParam?: boolean) => {
+    // 引数の処理: eがbooleanの場合は後方互換性のため forceStop として扱う
+    let forceStop = false;
+    if (typeof e === 'boolean') {
+      forceStop = e;
+    } else {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      forceStop = forceStopParam || false;
+    }
+
+    console.log('[Dice3D] handleStop() called - canStop:', canStop, 'isSpinning:', isSpinning, 'isSpinningRef:', isSpinningRef.current, 'forceStop:', forceStop);
+
+    // isSpinningRefを使って同期的にチェック
+    if (!isSpinningRef.current) {
+      console.log('[Dice3D] handleStop() returning early - not spinning (ref check)');
+      return;
+    }
+
+    if (!forceStop && !canStop) {
+      console.log('[Dice3D] handleStop() returning early - canStop is false');
+      return;
+    }
+
+    console.log('[Dice3D] handleStop() proceeding with deceleration');
+    setCanStop(false);
+
+    // アニメーションを停止
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    // 自然な減速アニメーション
+    const decelerate = () => {
+      // 速度を減速率で減らす
+      speedRef.current *= decelerationRate.current;
+
+      // 回転を更新
+      currentRotationRef.current += speedRef.current;
+      setRotation(currentRotationRef.current % 360);
+
+      // 速度が十分に遅くなったら停止
+      if (Math.abs(speedRef.current) < 0.1) {
+        // 完全に停止
+        speedRef.current = 0;
+        setIsSpinning(false);
+        isSpinningRef.current = false; // 同期的に追跡
+
+        // 停止位置から数字を判定（新しいシンプルな方法）
+        const finalRotation = currentRotationRef.current % 360;
+        const arrowAngle = 270; // 矢印の固定位置
+
+        // 各数字の現在位置を計算し、矢印に最も近い数字を見つける
+        let closestNumber = 1;
+        let minDistance = 360;
+
+        numbers.forEach((num, index) => {
+          // CSSでは rotate(angle)deg translateY(-140px) で配置
+          // これは270度（上側）から時計回りに配置される
+          // 数字の初期位置は 270度 + (index * 60度)
+          const numberInitialAngle = 270 + (index * anglePerNumber);
+          // ルーレットの回転を加える
+          const numberCurrentAngle = (numberInitialAngle + finalRotation) % 360;
+
+          // 矢印との距離を計算（最短距離を考慮）
+          let distance = Math.abs(numberCurrentAngle - arrowAngle);
+          if (distance > 180) {
+            distance = 360 - distance;
+          }
+
+          // 最も近い数字を記録
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestNumber = num;
+          }
+
+          console.log(`数字${num}: 初期${numberInitialAngle}度 → 現在${numberCurrentAngle.toFixed(1)}度, 矢印との距離${distance.toFixed(1)}度`);
+        });
+
+        const finalNumber = closestNumber;
+        console.log('停止位置:', finalRotation.toFixed(1), '度');
+        console.log('判定された数字:', finalNumber, '(距離:', minDistance.toFixed(1), '度)');
+
+        // デバッグ情報を画面に表示
+        setDebugInfo(`停止: ${finalRotation.toFixed(1)}° | 判定: 数字${finalNumber} (距離: ${minDistance.toFixed(1)}°)`);
+
+        // 結果を表示
+        setResult(finalNumber);
+        setShowZoom(true);
+
+        // 2.5秒後にズームを閉じる
+        setTimeout(() => {
+          setShowZoom(false);
+        }, 2500);
+
+        // 少し遅れてコールバック
+        setTimeout(() => {
+          onRollComplete(finalNumber);
+        }, 1500);
+      } else {
+        // 継続
+        animationRef.current = requestAnimationFrame(decelerate);
+      }
+    };
+
+    decelerate();
+  };
+
+  // autoPlay時の自動実行（マウント時のみ）
+  useEffect(() => {
+    // autoPlayが有効で、まだ実行していない場合のみ実行
+    if (autoPlay && !autoPlayExecutedRef.current) {
+      console.log('AutoPlay: Starting dice roll');
+      autoPlayExecutedRef.current = true; // 実行済みフラグを立てる
+
+      // 少し待機してから自動スタート
+      const startTimer = setTimeout(() => {
+        console.log('AutoPlay: Calling handleStart()');
+        handleStart();
+
+        // 1-2秒後に自動ストップ
+        const stopDelay = 1000 + Math.random() * 1000;
+        console.log('AutoPlay: Will auto-stop after', stopDelay, 'ms');
+        autoPlayTimerRef.current = setTimeout(() => {
+          console.log('AutoPlay: Calling handleStop() with forceStop=true');
+          handleStop(true); // forceStop=trueで強制停止
+        }, stopDelay);
+      }, 500);
+
+      return () => {
+        console.log('AutoPlay: Cleanup called');
+        clearTimeout(startTimer);
+        if (autoPlayTimerRef.current) {
+          clearTimeout(autoPlayTimerRef.current);
+          autoPlayTimerRef.current = null;
+        }
+        // isSpinningRefをリセット
+        isSpinningRef.current = false;
+        // NOTE: autoPlayExecutedRefはリセットしない（厳格モードでの2重実行を防ぐため）
+      };
+    }
+  }, [autoPlay]); // autoPlayのみに依存
+
+  useEffect(() => {
     return () => {
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
-      if (containerRef.current && renderer.domElement) {
-        containerRef.current.removeChild(renderer.domElement);
+      if (autoPlayTimerRef.current) {
+        clearTimeout(autoPlayTimerRef.current);
       }
-      renderer.dispose();
+      // コンポーネントアンマウント時にフラグをリセット
+      autoPlayExecutedRef.current = false;
+      isSpinningRef.current = false;
     };
   }, []);
 
-  const createDice = () => {
-    if (!sceneRef.current || !worldRef.current) return;
-
-    // サイコロのジオメトリ（大きく見やすく）
-    const diceSize = 1.5;
-    const geometry = new THREE.BoxGeometry(diceSize, diceSize, diceSize);
-
-    // サイコロの面のマテリアル（1-6の目）
-    const materials = [
-      createDiceFaceMaterial(1), // 右
-      createDiceFaceMaterial(6), // 左
-      createDiceFaceMaterial(2), // 上
-      createDiceFaceMaterial(5), // 下
-      createDiceFaceMaterial(3), // 前
-      createDiceFaceMaterial(4), // 後
-    ];
-
-    const diceMesh = new THREE.Mesh(geometry, materials);
-    diceMesh.castShadow = true;
-    diceMesh.position.set(0, -100, 0); // 初期状態は画面外
-    sceneRef.current.add(diceMesh);
-    diceMeshRef.current = diceMesh;
-
-    // 物理ボディ
-    const shape = new CANNON.Box(new CANNON.Vec3(diceSize / 2, diceSize / 2, diceSize / 2));
-
-    // サイコロの材質
-    const diceMaterial = new CANNON.Material('dice');
-    const body = new CANNON.Body({
-      mass: 1,
-      shape: shape,
-      position: new CANNON.Vec3(0, -100, 0), // 初期状態は画面外
-      linearDamping: 0.3,
-      angularDamping: 0.3,
-      material: diceMaterial,
-    });
-
-    // 床とサイコロの接触材質を設定（反発と摩擦）
-    const floorMaterial = new CANNON.Material('floor');
-    const contactMaterial = new CANNON.ContactMaterial(floorMaterial, diceMaterial, {
-      friction: 0.5, // 摩擦係数（適度に転がる）
-      restitution: 0.3, // 反発係数（適度にバウンドする）
-    });
-    worldRef.current.addContactMaterial(contactMaterial);
-
-    worldRef.current.addBody(body);
-    diceBodyRef.current = body;
-  };
-
-  const createDiceFaceMaterial = (number: number) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d')!;
-
-    // 背景（白）
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 256, 256);
-
-    // 枠
-    ctx.strokeStyle = '#333333';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(0, 0, 256, 256);
-
-    // 目（黒い円）
-    ctx.fillStyle = '#000000';
-    const dotSize = 20;
-    const positions = getDotPositions(number);
-
-    positions.forEach(([x, y]) => {
-      ctx.beginPath();
-      ctx.arc(x, y, dotSize, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    const texture = new THREE.CanvasTexture(canvas);
-    return new THREE.MeshStandardMaterial({ map: texture });
-  };
-
-  const getDotPositions = (number: number): [number, number][] => {
-    const center = 128;
-    const offset = 50;
-
-    const positions: Record<number, [number, number][]> = {
-      1: [[center, center]],
-      2: [[center - offset, center - offset], [center + offset, center + offset]],
-      3: [[center - offset, center - offset], [center, center], [center + offset, center + offset]],
-      4: [
-        [center - offset, center - offset],
-        [center + offset, center - offset],
-        [center - offset, center + offset],
-        [center + offset, center + offset],
-      ],
-      5: [
-        [center - offset, center - offset],
-        [center + offset, center - offset],
-        [center, center],
-        [center - offset, center + offset],
-        [center + offset, center + offset],
-      ],
-      6: [
-        [center - offset, center - offset],
-        [center + offset, center - offset],
-        [center - offset, center],
-        [center + offset, center],
-        [center - offset, center + offset],
-        [center + offset, center + offset],
-      ],
-    };
-
-    return positions[number] || [];
-  };
-
-  const rollDice = () => {
-    if (isRolling || disabled || !diceBodyRef.current) return;
-
-    setIsRolling(true);
-    setResult(null);
-
-    // サイコロをリセット（中央上部から投げる）
-    diceBodyRef.current.position.set(
-      (Math.random() - 0.5) * 0.3, // 横方向のランダム性を最小限に
-      3, // 高めの位置から
-      (Math.random() - 0.5) * 0.3
-    );
-
-    // ランダムな初速度を与える
-    diceBodyRef.current.velocity.set(
-      (Math.random() - 0.5) * 2, // 水平方向の速度を抑える
-      0, // 上向きには投げない（落とすだけ）
-      (Math.random() - 0.5) * 2
-    );
-
-    diceBodyRef.current.angularVelocity.set(
-      (Math.random() - 0.5) * 20, // 回転速度
-      (Math.random() - 0.5) * 20,
-      (Math.random() - 0.5) * 20
-    );
-
-    // 2.5秒後に結果を判定
-    setTimeout(() => {
-      if (diceBodyRef.current) {
-        diceBodyRef.current.velocity.set(0, 0, 0);
-        diceBodyRef.current.angularVelocity.set(0, 0, 0);
-      }
-      const diceResult = getDiceResult();
-      setResult(diceResult);
-      setIsRolling(false);
-      onRollComplete(diceResult);
-    }, 2500);
-  };
-
-  const getDiceResult = (): number => {
-    if (!diceMeshRef.current) return 1;
-
-    // サイコロの上面を判定
-    const upVector = new THREE.Vector3(0, 1, 0);
-    const faces = [
-      { face: 1, normal: new THREE.Vector3(1, 0, 0) },   // 右
-      { face: 6, normal: new THREE.Vector3(-1, 0, 0) },  // 左
-      { face: 2, normal: new THREE.Vector3(0, 1, 0) },   // 上
-      { face: 5, normal: new THREE.Vector3(0, -1, 0) },  // 下
-      { face: 3, normal: new THREE.Vector3(0, 0, 1) },   // 前
-      { face: 4, normal: new THREE.Vector3(0, 0, -1) },  // 後
-    ];
-
-    let maxDot = -1;
-    let resultFace = 1;
-
-    faces.forEach(({ face, normal }) => {
-      const worldNormal = normal.clone().applyQuaternion(diceMeshRef.current!.quaternion);
-      const dot = worldNormal.dot(upVector);
-      if (dot > maxDot) {
-        maxDot = dot;
-        resultFace = face;
-      }
-    });
-
-    return resultFace;
-  };
-
   return (
-    <div className="flex flex-col items-center justify-center gap-4">
-      {/* ボタン - 最上部に配置 */}
-      <Button
-        onClick={rollDice}
-        disabled={isRolling || disabled}
-        size="lg"
-        className="touch-target text-2xl font-bold px-12 py-6 bg-gradient-to-r from-red-600 via-orange-600 to-yellow-600 hover:from-red-700 hover:via-orange-700 hover:to-yellow-700 text-white shadow-2xl transform transition-all hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed border-4 border-yellow-400"
-      >
-        🎲 サイコロを振る
-      </Button>
+    <div className="flex flex-col items-center justify-center gap-6">
+      {/* ボタン - autoPlay時は非表示 */}
+      {!autoPlay && (
+        <>
+          {!isSpinning ? (
+            <Button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[Dice3D] Start button clicked');
+                handleStart();
+              }}
+              disabled={disabled}
+              size="lg"
+              type="button"
+              className="touch-target text-2xl font-bold px-12 py-6 bg-gradient-to-r from-green-600 via-emerald-600 to-green-600 hover:from-green-700 hover:via-emerald-700 hover:to-green-700 text-white shadow-2xl transform transition-all hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed border-4 border-green-400 relative z-50"
+            >
+              ▶️ スタート
+            </Button>
+          ) : (
+            <Button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[Dice3D] Stop button clicked - canStop:', canStop);
+                handleStop();
+              }}
+              disabled={!canStop}
+              size="lg"
+              type="button"
+              className="touch-target text-2xl font-bold px-12 py-6 bg-gradient-to-r from-red-600 via-orange-600 to-red-600 hover:from-red-700 hover:via-orange-700 hover:to-red-700 text-white shadow-2xl transform transition-all hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed border-4 border-red-400 relative z-50"
+            >
+              ⏹️ ストップ
+            </Button>
+          )}
+        </>
+      )}
 
-      {/* 3Dビューポート */}
-      <div
-        ref={containerRef}
-        className="relative border-4 border-amber-700 rounded-lg shadow-2xl"
-        style={{ width: '300px', height: '250px' }}
-      />
+      {/* autoPlay時のメッセージ */}
+      {autoPlay && isSpinning && (
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-xl shadow-lg">
+          <p className="text-lg font-semibold flex items-center gap-2">
+            <span className="animate-spin">⚙️</span>
+            <span>フリーマンがサイコロを振っています...</span>
+          </p>
+        </div>
+      )}
 
-      {/* 結果表示 */}
-      {result !== null && !isRolling && (
+      {/* デバッグ情報 */}
+      {debugInfo && (
+        <div className="bg-blue-900 text-white px-4 py-2 rounded text-sm font-mono">
+          {debugInfo}
+        </div>
+      )}
+
+      {/* ルーレット表示エリア */}
+      <div className="relative w-full max-w-md" style={{ perspective: '1500px' }}>
+        {/* 上部の矢印インジケーター - 改善版 */}
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-6 z-30">
+          <div
+            className="relative"
+            style={{
+              filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))',
+            }}
+          >
+            {/* 矢印の背景光 */}
+            <div
+              className="absolute inset-0 blur-xl"
+              style={{
+                background: 'radial-gradient(circle, rgba(255,215,0,0.6) 0%, transparent 70%)',
+                transform: 'scale(1.5)',
+              }}
+            />
+            <div className="text-7xl animate-bounce relative">
+              ⬇️
+            </div>
+          </div>
+        </div>
+
+        {/* ルーレット本体 */}
+        <div
+          className="relative mx-auto"
+          style={{
+            width: '420px',
+            height: '420px',
+            transformStyle: 'preserve-3d',
+            transform: 'rotateX(15deg)',
+            filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.5))',
+          }}
+        >
+          {/* 外枠 - 豪華な装飾 */}
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: 'linear-gradient(135deg, #d4af37 0%, #f9d67a 25%, #d4af37 50%, #b8941e 75%, #d4af37 100%)',
+              boxShadow: `
+                0 0 0 8px #b8941e,
+                0 0 0 12px #d4af37,
+                0 0 0 16px #8b7355,
+                inset 0 4px 12px rgba(0,0,0,0.4),
+                inset 0 -4px 12px rgba(255,255,255,0.3),
+                0 25px 50px rgba(0,0,0,0.5)
+              `,
+            }}
+          />
+
+          {/* 装飾的なリベット */}
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
+            <div
+              key={`rivet-${angle}`}
+              className="absolute"
+              style={{
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 30% 30%, #e5c77a, #8b7355)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.3)',
+                top: '50%',
+                left: '50%',
+                transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-200px)`,
+              }}
+            />
+          ))}
+
+          {/* 回転するルーレット盤 */}
+          <div
+            className="absolute inset-4 rounded-full overflow-hidden"
+            style={{
+              transform: `rotate(${rotation}deg)`,
+              transition: !isSpinning ? 'none' : 'none',
+              transformStyle: 'preserve-3d',
+            }}
+          >
+            {/* ルーレットの背景 - リッチな質感 */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `
+                  radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                  linear-gradient(135deg, #1a5c3a 0%, #0d4d2a 50%, #1a5c3a 100%)
+                `,
+                boxShadow: `
+                  inset 0 0 60px rgba(0,0,0,0.5),
+                  inset 0 0 30px rgba(0,100,0,0.3)
+                `,
+              }}
+            >
+              {/* フェルトのようなテクスチャ */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: `
+                    repeating-radial-gradient(circle at 0 0, transparent 0, rgba(255,255,255,0.03) 10px, transparent 20px)
+                  `,
+                  opacity: 0.3,
+                }}
+              />
+            </div>
+
+            {/* 数字を円周上に配置 */}
+            {numbers.map((num, index) => {
+              const angle = index * anglePerNumber;
+              return (
+                <div key={num}>
+                  {/* 数字 */}
+                  <div
+                    className="absolute top-1/2 left-1/2 origin-center"
+                    style={{
+                      transform: `rotate(${angle}deg) translateY(-140px)`,
+                      width: '80px',
+                      height: '80px',
+                      marginLeft: '-40px',
+                      marginTop: '-40px',
+                    }}
+                  >
+                    <div
+                      className="w-full h-full flex items-center justify-center rounded-full"
+                      style={{
+                        transform: `rotate(${-angle - rotation}deg)`,
+                        background: 'linear-gradient(145deg, #ffffff 0%, #f5f5f5 50%, #e8e8e8 100%)',
+                        boxShadow: `
+                          0 4px 8px rgba(0,0,0,0.3),
+                          inset 0 2px 4px rgba(255,255,255,0.8),
+                          inset 0 -2px 4px rgba(0,0,0,0.2),
+                          0 0 0 4px #ffd700,
+                          0 0 0 6px #d4af37
+                        `,
+                      }}
+                    >
+                      <span
+                        className="text-5xl font-black"
+                        style={{
+                          background: 'linear-gradient(180deg, #1a1a1a 0%, #4a4a4a 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          filter: 'drop-shadow(0 2px 2px rgba(255,255,255,0.5))',
+                        }}
+                      >
+                        {num}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 区切り線（数字の後ろ、次の数字との間） - 豪華版 */}
+                  <div
+                    className="absolute top-1/2 left-1/2 origin-center"
+                    style={{
+                      transform: `rotate(${angle + anglePerNumber / 2}deg) translateY(-160px)`,
+                      width: '6px',
+                      height: '50px',
+                      marginLeft: '-3px',
+                      marginTop: '-25px',
+                    }}
+                  >
+                    <div
+                      className="w-full h-full"
+                      style={{
+                        background: 'linear-gradient(90deg, #b8941e 0%, #ffd700 50%, #b8941e 100%)',
+                        boxShadow: `
+                          0 0 8px rgba(255,215,0,0.6),
+                          inset 0 1px 2px rgba(255,255,255,0.5),
+                          inset 0 -1px 2px rgba(0,0,0,0.3)
+                        `,
+                        borderRadius: '2px',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* 中央の装飾 - 豪華な中心飾り */}
+            <div
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+              style={{
+                width: '100px',
+                height: '100px',
+              }}
+            >
+              {/* 外側の輪 */}
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: 'conic-gradient(from 0deg, #ffd700, #ffed4e, #ffd700, #d4af37, #ffd700)',
+                  boxShadow: `
+                    0 0 20px rgba(255,215,0,0.8),
+                    inset 0 2px 8px rgba(255,255,255,0.6),
+                    inset 0 -2px 8px rgba(0,0,0,0.4)
+                  `,
+                  animation: 'spin 20s linear infinite',
+                }}
+              />
+              {/* 内側の円 */}
+              <div
+                className="absolute inset-2 rounded-full"
+                style={{
+                  background: 'radial-gradient(circle at 30% 30%, #f9d67a, #d4af37, #8b7355)',
+                  boxShadow: `
+                    inset 0 4px 8px rgba(0,0,0,0.5),
+                    0 2px 4px rgba(255,255,255,0.3)
+                  `,
+                }}
+              />
+              {/* 中心の宝石 */}
+              <div
+                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  background: 'radial-gradient(circle at 30% 30%, #fff, #ffd700, #d4af37)',
+                  boxShadow: `
+                    0 0 15px rgba(255,255,255,0.8),
+                    inset 0 2px 4px rgba(255,255,255,0.6),
+                    0 4px 8px rgba(0,0,0,0.3)
+                  `,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 結果表示 - ズームイン */}
+      {showZoom && result !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
+          style={{
+            animation: 'fadeIn 0.3s ease-in',
+          }}
+        >
+          <div
+            className="text-center"
+            style={{
+              animation: 'zoomIn 0.5s ease-out',
+            }}
+          >
+            {/* 大きな数字 */}
+            <div
+              className="text-[20rem] font-black text-white mb-8"
+              style={{
+                textShadow: '0 0 40px rgba(255,255,255,0.8), 0 0 80px rgba(255,215,0,0.6), 0 0 120px rgba(255,165,0,0.4)',
+                animation: 'zoomIn 0.5s ease-out, pulse 1s ease-in-out infinite 0.5s',
+              }}
+            >
+              {result}
+            </div>
+
+            {/* メッセージ */}
+            <div className="bg-gradient-to-r from-red-600 via-orange-600 to-red-600 text-white px-12 py-6 rounded-2xl shadow-2xl border-4 border-yellow-400">
+              <p className="text-4xl font-bold">
+                🎯 {result}マス進む！
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes zoomIn {
+          from {
+            opacity: 0;
+            transform: scale(0.3);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.05);
+          }
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
+
+      {/* 通常の結果表示（ズーム後） */}
+      {result !== null && !isSpinning && !showZoom && (
         <div className="animate-fade-in">
           <div className="bg-gradient-to-r from-red-600 via-orange-600 to-red-600 text-white px-8 py-4 rounded-xl shadow-xl border-4 border-yellow-400">
             <p className="text-2xl font-bold">

@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import type { GameSession, Airport } from '@/types/database.types';
+import type { GamePlayer } from '@/types/multiplayer.types';
+import { TurnManager } from './turnManager';
 
 interface GameContextType {
   gameSession: GameSession | null;
@@ -9,14 +11,27 @@ interface GameContextType {
   isLoading: boolean;
   error: string | null;
 
+  // 複数プレイヤー対応
+  players: GamePlayer[];
+  currentTurnPlayer: GamePlayer | null;
+
   // ゲームセッション操作
   setGameSession: (session: GameSession | null) => void;
   setCurrentAirport: (airport: Airport | null) => void;
   updatePoints: (impressedPoints: number, giverPoints: number) => void;
-  updateElapsedDays: (days: number) => void;
+  updateElapsedDays: (days: number) => Promise<void>;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   resetGame: () => void;
+
+  // プレイヤー管理
+  setPlayers: (players: GamePlayer[]) => void;
+  setCurrentTurnPlayer: (player: GamePlayer | null) => void;
+  updatePlayer: (playerId: string, updates: Partial<GamePlayer>) => void;
+
+  // ターン管理
+  endTurn: () => Promise<void>;
+  startTurn: () => Promise<GamePlayer>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -26,6 +41,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [currentAirport, setCurrentAirportState] = useState<Airport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 複数プレイヤー対応
+  const [players, setPlayersState] = useState<GamePlayer[]>([]);
+  const [currentTurnPlayer, setCurrentTurnPlayerState] = useState<GamePlayer | null>(null);
+
+  const turnManager = new TurnManager();
 
   const setGameSession = useCallback((session: GameSession | null) => {
     setGameSessionState(session);
@@ -47,12 +68,51 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const updateElapsedDays = useCallback((days: number) => {
+  const updateElapsedDays = useCallback(async (days: number) => {
+    console.log(`[GameContext] updateElapsedDays called with ${days} days`);
+
     setGameSessionState((prev) => {
-      if (!prev) return prev;
+      if (!prev) {
+        console.log('[GameContext] updateElapsedDays: No game session, skipping');
+        return prev;
+      }
+
+      const newElapsedDays = prev.elapsed_days + days;
+      console.log(`[GameContext] updateElapsedDays: ${prev.elapsed_days} → ${newElapsedDays} days`);
+
+      // データベースに保存（非同期で実行）
+      const saveToDatabase = async () => {
+        try {
+          console.log(`[GameContext] Attempting to save elapsed_days for session: ${prev.id}`);
+
+          // 認証状態を確認
+          const { createClient } = await import('@/lib/supabase/client');
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          console.log(`[GameContext] Current user:`, user?.id || 'Not authenticated');
+
+          const { updateGameSession } = await import('./api');
+          await updateGameSession(prev.id, {
+            elapsed_days: newElapsedDays,
+          });
+          console.log(`[GameContext] elapsed_days saved to database: ${newElapsedDays}`);
+        } catch (error) {
+          console.error('[GameContext] Failed to save elapsed_days to database:', error);
+          console.error('[GameContext] Error details:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            name: error instanceof Error ? error.name : 'Unknown',
+            stack: error instanceof Error ? error.stack : 'No stack trace',
+            raw: error,
+          });
+        }
+      };
+
+      // データベース保存を実行（await不要、バックグラウンドで実行）
+      saveToDatabase();
+
       return {
         ...prev,
-        elapsed_days: prev.elapsed_days + days,
+        elapsed_days: newElapsedDays,
       };
     });
   }, []);
@@ -69,7 +129,61 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameSessionState(null);
     setCurrentAirportState(null);
     setError(null);
+    setPlayersState([]);
+    setCurrentTurnPlayerState(null);
   }, []);
+
+  // プレイヤー管理
+  const setPlayers = useCallback((newPlayers: GamePlayer[]) => {
+    setPlayersState(newPlayers);
+  }, []);
+
+  const setCurrentTurnPlayer = useCallback((player: GamePlayer | null) => {
+    setCurrentTurnPlayerState(player);
+  }, []);
+
+  const updatePlayer = useCallback((playerId: string, updates: Partial<GamePlayer>) => {
+    setPlayersState((prev) =>
+      prev.map((player) =>
+        player.id === playerId ? { ...player, ...updates } : player
+      )
+    );
+  }, []);
+
+  // ターン管理
+  const endTurn = useCallback(async () => {
+    if (!gameSession?.id) {
+      throw new Error('No active game session');
+    }
+
+    try {
+      await turnManager.endTurn(gameSession.id);
+
+      // 次のターンプレイヤーを取得して設定
+      const nextPlayer = await turnManager.startTurn(gameSession.id);
+      setCurrentTurnPlayerState(nextPlayer);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to end turn';
+      setError(errorMessage);
+      throw err;
+    }
+  }, [gameSession?.id, turnManager]);
+
+  const startTurn = useCallback(async (): Promise<GamePlayer> => {
+    if (!gameSession?.id) {
+      throw new Error('No active game session');
+    }
+
+    try {
+      const player = await turnManager.startTurn(gameSession.id);
+      setCurrentTurnPlayerState(player);
+      return player;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start turn';
+      setError(errorMessage);
+      throw err;
+    }
+  }, [gameSession?.id, turnManager]);
 
   return (
     <GameContext.Provider
@@ -78,6 +192,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         currentAirport,
         isLoading,
         error,
+        players,
+        currentTurnPlayer,
         setGameSession,
         setCurrentAirport,
         updatePoints,
@@ -85,6 +201,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setLoading,
         setError: setErrorCallback,
         resetGame,
+        setPlayers,
+        setCurrentTurnPlayer,
+        updatePlayer,
+        endTurn,
+        startTurn,
       }}
     >
       {children}

@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { Airport } from "@/types/database.types";
+import type { GamePlayer } from "@/types/multiplayer.types";
 
 interface WorldMapProps {
   currentAirport: Airport;
@@ -13,6 +14,10 @@ interface WorldMapProps {
   playerColor?: string; // 'red', 'blue', 'green', 'yellow', 'purple', 'orange'
   routeSpaces?: Array<{ lat: number; lng: number; spaceNumber: number }>;
   currentSpace?: number; // 現在のマス位置（1から始まる）
+  // 複数プレイヤー対応
+  players?: GamePlayer[];
+  currentPlayer?: GamePlayer;
+  airports?: Airport[]; // 全空港リスト（プレイヤー位置表示用）
 }
 
 // Leaflet components loaded dynamically (client-side only)
@@ -53,9 +58,13 @@ export default function WorldMap({
   playerColor = 'red',
   routeSpaces = [],
   currentSpace = 0,
+  players = [],
+  currentPlayer,
+  airports = [],
 }: WorldMapProps) {
   const [isClient, setIsClient] = useState(false);
   const [planeIcon, setPlaneIcon] = useState<any>(null);
+  const [planeIcons, setPlaneIcons] = useState<Map<string, any>>(new Map());
 
   // 緯度経度を数値として安全に取得（Supabaseは文字列で返すことがある）
   const getCoordinate = (value: any): number => {
@@ -137,6 +146,66 @@ export default function WorldMap({
     }
   }, [rotation, destinationAirport, colors]);
 
+  // 各プレイヤー用の飛行機アイコンを生成
+  useEffect(() => {
+    if (typeof window !== "undefined" && players.length > 0) {
+      import("leaflet").then((L) => {
+        const newIcons = new Map<string, any>();
+
+        players.forEach((player) => {
+          // プレイヤーカラーを取得
+          const playerColorHex = player.player_color || '#3b82f6';
+
+          // プレイヤータイプに応じた色設定
+          let primary: string;
+          let shadow: string;
+          let glow: string;
+
+          if (player.player_type === 'freeman_d' || player.player_type === 'freeman_s') {
+            // フリーマンは赤系（より目立つ色）
+            primary = '#ef4444'; // 明るい赤
+            shadow = '#991b1b'; // 濃い赤
+            glow = '#fca5a5'; // グロー赤
+          } else {
+            // 人間プレイヤーは青系
+            primary = '#3b82f6'; // 青
+            shadow = '#1e3a8a'; // 濃い青
+            glow = '#93c5fd'; // グロー青
+          }
+
+          const icon = L.divIcon({
+            html: `
+              <div style="transform: rotate(45deg); filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));">
+                <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                  <!-- グロー効果 -->
+                  <circle cx="20" cy="20" r="18" fill="${glow}" opacity="0.3"/>
+                  <!-- 飛行機本体 -->
+                  <g transform="translate(20, 20)">
+                    <!-- 機体 -->
+                    <ellipse cx="0" cy="0" rx="3" ry="8" fill="${primary}" stroke="${shadow}" stroke-width="1"/>
+                    <!-- 主翼 -->
+                    <rect x="-12" y="-2" width="24" height="4" rx="2" fill="${primary}" stroke="${shadow}" stroke-width="1"/>
+                    <!-- 尾翼 -->
+                    <polygon points="-4,6 0,10 4,6" fill="${primary}" stroke="${shadow}" stroke-width="1"/>
+                    <!-- コックピット -->
+                    <circle cx="0" cy="-5" r="2.5" fill="white" opacity="0.8"/>
+                  </g>
+                </svg>
+              </div>
+            `,
+            className: "plane-marker",
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          });
+
+          newIcons.set(player.id, icon);
+        });
+
+        setPlaneIcons(newIcons);
+      });
+    }
+  }, [players]);
+
   const currentLat = getCoordinate(currentAirport.latitude);
   const currentLng = getCoordinate(currentAirport.longitude);
 
@@ -181,18 +250,6 @@ export default function WorldMap({
     console.log(`プレイヤー位置: lat=${playerPosition.lat}, lng=${playerPosition.lng}`);
   }, [currentAirport, currentLat, currentLng, destinationAirport, showRoute, routeSpaces, currentSpace, playerPosition]);
 
-  // ルートライン（現在地から目的地）
-  const routeLine = useMemo(() => {
-    if (!showRoute || !destinationAirport) return null;
-
-    const destLat = getCoordinate(destinationAirport.latitude);
-    const destLng = getCoordinate(destinationAirport.longitude);
-
-    return [
-      [currentLat, currentLng] as [number, number],
-      [destLat, destLng] as [number, number],
-    ];
-  }, [showRoute, currentLat, currentLng, destinationAirport]);
 
   // マップの中心とズームを計算（経路全体が表示されるように）
   const mapCenterAndZoom = useMemo(() => {
@@ -210,11 +267,17 @@ export default function WorldMap({
       const maxDiff = Math.max(latDiff, lngDiff);
 
       let zoom = 5; // デフォルト
-      if (maxDiff < 5) zoom = 6;
-      else if (maxDiff < 10) zoom = 5;
-      else if (maxDiff < 20) zoom = 4;
-      else if (maxDiff < 40) zoom = 3;
-      else zoom = 2;
+      // 短距離の場合により細かくズームイン
+      if (maxDiff < 0.5) zoom = 10;       // ~55km: 非常に近い
+      else if (maxDiff < 1) zoom = 9;     // ~111km: とても近い
+      else if (maxDiff < 2) zoom = 8;     // ~222km: 近い
+      else if (maxDiff < 3) zoom = 7;     // ~333km: やや近い
+      else if (maxDiff < 5) zoom = 7;     // ~555km: 中近距離
+      else if (maxDiff < 8) zoom = 7;     // ~888km: 中距離
+      else if (maxDiff < 15) zoom = 5;    // ~1665km: やや長距離
+      else if (maxDiff < 25) zoom = 4;    // ~2775km: 長距離
+      else if (maxDiff < 40) zoom = 3;    // ~4440km: 超長距離
+      else zoom = 2;                      // それ以上
 
       return { center: [centerLat, centerLng] as [number, number], zoom };
     }
@@ -232,7 +295,7 @@ export default function WorldMap({
   }
 
   return (
-    <div className="relative w-full rounded-lg overflow-hidden" style={{ height: '400px' }}>
+    <div className="relative w-full rounded-lg overflow-hidden" style={{ height: '300px' }}>
       {/* Leaflet CSS */}
       <link
         rel="stylesheet"
@@ -309,103 +372,204 @@ export default function WorldMap({
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
 
-        {/* ルートライン - 背景（グロー効果） */}
-        {routeLine && (
-          <>
-            <Polyline
-              positions={routeLine}
-              color="#60a5fa"
-              weight={8}
-              opacity={0.3}
-            />
-            <Polyline
-              positions={routeLine}
-              color="#3b82f6"
-              weight={4}
-              opacity={0.9}
-              dashArray="10, 5"
-            />
-          </>
-        )}
+        {/* 各プレイヤーの経路を表示 */}
+        {players && players.length > 0 && players.map((player) => {
+          // プレイヤーがルートを持っている場合のみ表示
+          if (!player.route_spaces || player.route_spaces.length === 0) return null;
 
-        {/* 経路上のマス目（500kmごと） */}
-        {routeSpaces.map((space) => {
-          const isPassed = currentSpace > space.spaceNumber;
-          const isCurrent = currentSpace === space.spaceNumber;
+          // route_spacesから出発地と目的地を取得
+          const startSpace = player.route_spaces[0];
+          const endSpace = player.route_spaces[player.route_spaces.length - 1];
+
+          if (!startSpace || !endSpace) return null;
+
+          // プレイヤータイプに応じた色設定
+          const playerRouteColor = player.player_type === 'freeman_d' || player.player_type === 'freeman_s'
+            ? { primary: '#ef4444', glow: '#fca5a5' }  // 赤系
+            : { primary: '#3b82f6', glow: '#93c5fd' };  // 青系
+
+          const routeLine = [
+            [startSpace.lat, startSpace.lng] as [number, number],
+            [endSpace.lat, endSpace.lng] as [number, number],
+          ];
 
           return (
-            <CircleMarker
-              key={`space-${space.spaceNumber}`}
-              center={[space.lat, space.lng]}
-              radius={isCurrent ? 10 : 6}
-              color={isPassed ? '#10b981' : isCurrent ? colors.primary : '#9ca3af'}
-              fillColor={isPassed ? '#34d399' : isCurrent ? colors.glow : '#d1d5db'}
-              fillOpacity={isCurrent ? 1 : 0.8}
-              weight={isCurrent ? 3 : 2}
-            >
-              <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
-                <div className="text-center text-xs">
-                  <div className="font-bold">マス {space.spaceNumber}</div>
-                  {isCurrent && <div className="text-green-600">現在地</div>}
-                  {isPassed && <div className="text-gray-500">通過済み</div>}
-                </div>
-              </Tooltip>
-            </CircleMarker>
+            <div key={`route-${player.id}`}>
+              {/* ルートライン - 背景（グロー効果） */}
+              <Polyline
+                positions={routeLine}
+                color={playerRouteColor.glow}
+                weight={8}
+                opacity={0.3}
+              />
+              <Polyline
+                positions={routeLine}
+                color={playerRouteColor.primary}
+                weight={4}
+                opacity={0.9}
+                dashArray="10, 5"
+              />
+
+              {/* 経路上のマス目（500kmごと） */}
+              {player.route_spaces && player.route_spaces.map((space) => {
+                const isPassed = player.current_space_number > space.spaceNumber;
+                const isCurrent = player.current_space_number === space.spaceNumber;
+
+                return (
+                  <CircleMarker
+                    key={`space-${player.id}-${space.spaceNumber}`}
+                    center={[space.lat, space.lng]}
+                    radius={isCurrent ? 10 : 6}
+                    color={isPassed ? '#10b981' : isCurrent ? playerRouteColor.primary : '#9ca3af'}
+                    fillColor={isPassed ? '#34d399' : isCurrent ? playerRouteColor.glow : '#d1d5db'}
+                    fillOpacity={isCurrent ? 1 : 0.8}
+                    weight={isCurrent ? 3 : 2}
+                  >
+                    <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+                      <div className="text-center text-xs">
+                        <div className="font-bold">{player.player_nickname}</div>
+                        <div className="font-bold">マス {space.spaceNumber}</div>
+                        {isCurrent && <div className="text-green-600">現在地</div>}
+                        {isPassed && <div className="text-gray-500">通過済み</div>}
+                      </div>
+                    </Tooltip>
+                  </CircleMarker>
+                );
+              })}
+            </div>
           );
         })}
 
-        {/* プレイヤーマーカー（飛行機アイコン） */}
-        {planeIcon && (
-          <Marker
-            position={[playerPosition.lat, playerPosition.lng]}
-            icon={planeIcon}
-          >
-            <Tooltip direction="top" offset={[0, -20]} opacity={1}>
-              <div className="text-center">
-                <div className="font-bold mb-1" style={{ color: colors.primary }}>👤 {playerNickname}</div>
-                {currentSpace > 0 && routeSpaces.length > 0 ? (
-                  <>
-                    <div className="font-bold">🛫 移動中</div>
-                    <div className="text-xs text-gray-600">
-                      マス {currentSpace} / {routeSpaces.length}
-                    </div>
-                    <div className="text-xs font-bold" style={{ color: colors.primary }}>
-                      目的地: {destinationAirport?.city || '不明'}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="font-bold">✈️ {currentAirport.city}</div>
-                    <div className="text-xs text-gray-600">{currentAirport.name_ja || currentAirport.name}</div>
-                    <div className="text-xs text-gray-500">{currentAirport.code}</div>
-                    <div className="text-xs font-bold" style={{ color: colors.primary }}>現在地</div>
-                  </>
-                )}
-              </div>
-            </Tooltip>
-            <Popup>
-              <div className="text-center">
-                <div className="text-lg font-bold mb-1" style={{ color: colors.primary }}>👤 {playerNickname}</div>
-                <div className="text-2xl mb-1">✈️</div>
-                {currentSpace > 0 && routeSpaces.length > 0 ? (
-                  <>
-                    <div className="font-bold">移動中</div>
-                    <div className="text-sm text-gray-600">
-                      マス {currentSpace} / {routeSpaces.length}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="font-bold">{currentAirport.city}</div>
-                    <div className="text-sm text-gray-600">現在地</div>
-                  </>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        )}
+        {/* 全プレイヤーマーカー（マルチプレイヤー対応） */}
+        {players && players.length > 0 && (() => {
+          // プレイヤーの位置を計算し、同じ位置のプレイヤーをグループ化
+          const playerPositions: Map<string, Array<{ player: GamePlayer; lat: number; lng: number }>> = new Map();
 
-        {/* 目的地マーカー - 外側のパルス */}
+          players.forEach((player) => {
+            // プレイヤー専用のアイコンを取得
+            const playerPlaneIcon = planeIcons.get(player.id);
+            if (!playerPlaneIcon) return;
+
+            // プレイヤーの現在位置を計算
+            let playerLat: number | undefined;
+            let playerLng: number | undefined;
+
+            if (player.current_space_number > 0 && player.route_spaces && player.route_spaces.length > 0) {
+              // 移動中: ルート上の位置
+              const spaceIndex = player.current_space_number - 1;
+              if (spaceIndex >= 0 && spaceIndex < player.route_spaces.length) {
+                playerLat = player.route_spaces[spaceIndex].lat;
+                playerLng = player.route_spaces[spaceIndex].lng;
+              } else {
+                // 目的地に到達している場合 - 共通目的地を使用
+                if (destinationAirport) {
+                  playerLat = getCoordinate(destinationAirport.latitude);
+                  playerLng = getCoordinate(destinationAirport.longitude);
+                }
+              }
+            } else {
+              // 空港にいる: プレイヤーの現在地空港を取得
+              const playerAirport = airports.find(a => a.id === player.current_airport_id);
+              if (playerAirport) {
+                playerLat = getCoordinate(playerAirport.latitude);
+                playerLng = getCoordinate(playerAirport.longitude);
+              } else {
+                console.warn(`プレイヤー ${player.player_nickname} (${player.id}) の空港が見つかりません:`, {
+                  current_airport_id: player.current_airport_id,
+                  current_space_number: player.current_space_number,
+                  available_airports: airports.length
+                });
+              }
+            }
+
+            // 位置が特定できない場合はスキップ
+            if (playerLat === undefined || playerLng === undefined) return;
+
+            // 位置キーを作成（小数点3桁で丸めて同じ位置を検出）
+            const posKey = `${playerLat.toFixed(3)},${playerLng.toFixed(3)}`;
+
+            if (!playerPositions.has(posKey)) {
+              playerPositions.set(posKey, []);
+            }
+            playerPositions.get(posKey)!.push({ player, lat: playerLat, lng: playerLng });
+          });
+
+          // 各位置のプレイヤーにオフセットを適用してマーカーを配置
+          const markers: JSX.Element[] = [];
+
+          playerPositions.forEach((playersAtPos) => {
+            const count = playersAtPos.length;
+
+            playersAtPos.forEach((playerData, index) => {
+              const { player, lat, lng } = playerData;
+              const playerPlaneIcon = planeIcons.get(player.id);
+              if (!playerPlaneIcon) return;
+
+              // 複数プレイヤーが同じ位置にいる場合、円形に配置
+              let offsetLat = 0;
+              let offsetLng = 0;
+
+              if (count > 1) {
+                // 円形配置のための角度計算（360度 / プレイヤー数）
+                const angle = (index * 360) / count;
+                const angleRad = (angle * Math.PI) / 180;
+
+                // オフセットの半径（緯度経度単位で約0.3度 ≈ 33km）
+                // ズームレベルに応じて調整可能
+                const radius = 0.3;
+
+                offsetLat = radius * Math.cos(angleRad);
+                offsetLng = radius * Math.sin(angleRad);
+
+                console.log(`[WorldMap] プレイヤー ${player.player_nickname} - 同じ位置に${count}人 - オフセット適用 (${index}/${count}): angle=${angle}°, offset=(${offsetLat.toFixed(3)}, ${offsetLng.toFixed(3)})`);
+              }
+
+              const finalLat = lat + offsetLat;
+              const finalLng = lng + offsetLng;
+
+              // プレイヤーのアイコンを決定
+              const playerIcon = player.player_type === 'human' ? '👤' :
+                                 player.player_type === 'freeman_d' ? '🤖' : '🤝';
+
+              markers.push(
+                <Marker
+                  key={player.id}
+                  position={[finalLat, finalLng]}
+                  icon={playerPlaneIcon}
+                >
+                  <Tooltip direction="top" offset={[0, -20]} opacity={1}>
+                    <div className="text-center">
+                      <div className="font-bold mb-1" style={{ color: player.player_color }}>
+                        {playerIcon} {player.player_nickname}
+                      </div>
+                      <div className="text-xs">
+                        ポイント: {player.total_points}
+                      </div>
+                      {player.current_space_number > 0 ? (
+                        <div className="text-xs text-gray-600">
+                          移動中 (マス {player.current_space_number})
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-600">
+                          空港
+                        </div>
+                      )}
+                      {count > 1 && (
+                        <div className="text-xs text-purple-600 font-bold mt-1">
+                          同じマスに{count}人
+                        </div>
+                      )}
+                    </div>
+                  </Tooltip>
+                </Marker>
+              );
+            });
+          });
+
+          return markers;
+        })()}
+
+        {/* 共通の目的地マーカー */}
         {destinationAirport && (
           <>
             <CircleMarker
@@ -436,7 +600,7 @@ export default function WorldMap({
                   <div className="font-bold">🎯 {destinationAirport.city}</div>
                   <div className="text-xs text-gray-600">{destinationAirport.name_ja || destinationAirport.name}</div>
                   <div className="text-xs text-gray-500">{destinationAirport.code}</div>
-                  <div className="text-xs text-amber-600 font-bold">目的地</div>
+                  <div className="text-xs text-amber-600 font-bold">共通目的地</div>
                 </div>
               </Tooltip>
             </CircleMarker>

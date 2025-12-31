@@ -12,11 +12,17 @@ export default function AudioControls() {
       <div className="flex items-center gap-3">
         {/* ミュートボタン */}
         <Button
-          onClick={toggleMute}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[AudioControls] Mute button clicked');
+            toggleMute();
+          }}
           variant="outline"
           size="sm"
-          className="touch-target"
+          className="touch-target relative z-50"
           aria-label={isMuted ? '音声をオンにする' : '音声をミュートする'}
+          type="button"
         >
           {isMuted ? '🔇' : '🔊'}
         </Button>
