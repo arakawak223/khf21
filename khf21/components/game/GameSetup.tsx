@@ -10,7 +10,15 @@ import type { Airport } from '@/types/database.types';
 
 interface GameSetupProps {
   airports: Airport[];
-  onStart: (periodDays: number, periodName: string, startingAirportId: string, nickname?: string) => void;
+  onStart: (
+    periodDays: number,
+    periodName: string,
+    startingAirportId: string,
+    nickname?: string,
+    isMultiplayer?: boolean,
+    includeFreeman?: boolean,
+    isOnlineMultiplayer?: boolean
+  ) => void;
 }
 
 // BGM選択肢の情報
@@ -26,6 +34,8 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [nickname, setNickname] = useState('');
   const [selectedBGM, setSelectedBGM] = useState(BGM_OPTIONS[0].url);
+  const [isMultiplayer, setIsMultiplayer] = useState(true); // デフォルトでマルチプレイヤー
+  const [includeFreeman, setIncludeFreeman] = useState(true); // デフォルトでフリーマンあり
 
   const selectedPeriodData = GAME_PERIODS.find((p) => p.value === selectedPeriod);
 
@@ -62,7 +72,14 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
     }
 
     console.log('Calling onStart...');
-    onStart(selectedPeriodData.days, selectedPeriodData.label, selectedAirportId, nickname.trim() || undefined);
+    onStart(
+      selectedPeriodData.days,
+      selectedPeriodData.label,
+      selectedAirportId,
+      nickname.trim() || undefined,
+      isMultiplayer,
+      includeFreeman
+    );
   };
 
   return (
@@ -78,6 +95,134 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
               旅の期間と出発地を選択してください
             </p>
           </div>
+
+          {/* ゲームモード選択 */}
+          <div>
+            <Label className="text-base font-semibold mb-3 block">
+              🎮 ゲームモード
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setIsMultiplayer(false)}
+                className={`
+                  touch-target p-4 rounded-lg border-2 transition-all
+                  ${
+                    !isMultiplayer
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-green-300'
+                  }
+                `}
+              >
+                <div className="text-center">
+                  <p className="text-2xl mb-1">👤</p>
+                  <p className="font-bold text-gray-800 dark:text-gray-200">
+                    シングル
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    1人プレイ
+                  </p>
+                </div>
+              </button>
+              <button
+                onClick={() => setIsMultiplayer(true)}
+                className={`
+                  touch-target p-4 rounded-lg border-2 transition-all
+                  ${
+                    isMultiplayer
+                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-900'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-orange-300'
+                  }
+                `}
+              >
+                <div className="text-center">
+                  <p className="text-2xl mb-1">👥</p>
+                  <p className="font-bold text-gray-800 dark:text-gray-200">
+                    マルチ
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    対戦プレイ
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* フリーマン設定（マルチプレイヤー時のみ） */}
+          {isMultiplayer && (
+            <div>
+              <Label className="text-base font-semibold mb-3 block">
+                🤖 対戦相手
+              </Label>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => setIncludeFreeman(false)}
+                  className={`
+                    touch-target p-4 rounded-lg border-2 transition-all
+                    ${
+                      !includeFreeman
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
+                    }
+                  `}
+                >
+                  <div className="text-center">
+                    <p className="text-2xl mb-1">👤</p>
+                    <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
+                      人間のみ
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      AI なし
+                    </p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setIncludeFreeman(true)}
+                  className={`
+                    touch-target p-4 rounded-lg border-2 transition-all
+                    ${
+                      includeFreeman
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-red-300'
+                    }
+                  `}
+                >
+                  <div className="text-center">
+                    <p className="text-2xl mb-1">🤖</p>
+                    <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
+                      Dフリーマン
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      AI対戦
+                    </p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    // オンライン対戦を選択
+                    onStart(0, '', '', '', true, false, true);
+                  }}
+                  className="touch-target p-4 rounded-lg border-2 border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900 dark:to-pink-900 hover:border-purple-600 transition-all"
+                >
+                  <div className="text-center">
+                    <p className="text-2xl mb-1">🌐</p>
+                    <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
+                      オンライン
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      人間対戦
+                    </p>
+                  </div>
+                </button>
+              </div>
+              <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  <span className="font-bold">💡 ヒント</span><br />
+                  ・Dフリーマン: 追い越すとペナルティ、追い越されるとSフリーマン（サポート型）に変化<br />
+                  ・オンライン: 他の人間プレイヤーとリアルタイムで対戦！
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ニックネーム入力 */}
           <div>

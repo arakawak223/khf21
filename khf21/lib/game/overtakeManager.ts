@@ -28,12 +28,24 @@ export class OvertakeManager {
     const overtakeEvents: OvertakeCheckResult['events'] = [];
 
     // 同じ目的地に向かっているプレイヤーをフィルタリング
-    const sameDestinationPlayers = allPlayers.filter(
-      (player) =>
-        player.id !== currentPlayer.id &&
-        player.destination_airport_id === currentPlayer.destination_airport_id &&
-        player.current_space_number > 0
-    );
+    const sameDestinationPlayers = allPlayers.filter((player) => {
+      if (player.id === currentPlayer.id) return false;
+      if (!player.route_spaces || player.route_spaces.length === 0) return false;
+      if (!currentPlayer.route_spaces || currentPlayer.route_spaces.length === 0) return false;
+      if (player.current_space_number <= 0) return false;
+
+      // 目的地が同じかチェック（最終マスが近い）
+      const currentDestination = currentPlayer.route_spaces[currentPlayer.route_spaces.length - 1];
+      const otherDestination = player.route_spaces[player.route_spaces.length - 1];
+
+      const distance = Math.sqrt(
+        Math.pow(currentDestination.lat - otherDestination.lat, 2) +
+        Math.pow(currentDestination.lng - otherDestination.lng, 2)
+      );
+
+      // 目的地が近い（同じ目的地とみなす）
+      return distance < 0.1;
+    });
 
     for (const otherPlayer of sameDestinationPlayers) {
       const otherSpace = otherPlayer.current_space_number;

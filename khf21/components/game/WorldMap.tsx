@@ -295,7 +295,7 @@ export default function WorldMap({
   }
 
   return (
-    <div className="relative w-full rounded-lg overflow-hidden" style={{ height: '300px' }}>
+    <div className="relative w-full h-full rounded-lg overflow-hidden">
       {/* Leaflet CSS */}
       <link
         rel="stylesheet"
@@ -495,7 +495,7 @@ export default function WorldMap({
           });
 
           // 各位置のプレイヤーにオフセットを適用してマーカーを配置
-          const markers: JSX.Element[] = [];
+          const markers: React.JSX.Element[] = [];
 
           playerPositions.forEach((playersAtPos) => {
             const count = playersAtPos.length;
@@ -595,12 +595,11 @@ export default function WorldMap({
               fillOpacity={1}
               weight={4}
             >
-              <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+              <Tooltip direction="bottom" offset={[0, 25]} opacity={0.95} permanent>
                 <div className="text-center">
-                  <div className="font-bold">🎯 {destinationAirport.city}</div>
-                  <div className="text-xs text-gray-600">{destinationAirport.name_ja || destinationAirport.name}</div>
+                  <div className="font-bold text-sm">🎯 {destinationAirport.city}</div>
                   <div className="text-xs text-gray-500">{destinationAirport.code}</div>
-                  <div className="text-xs text-amber-600 font-bold">共通目的地</div>
+                  <div className="text-xs text-amber-600 font-semibold">共通目的地</div>
                 </div>
               </Tooltip>
             </CircleMarker>

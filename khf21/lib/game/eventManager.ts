@@ -44,10 +44,11 @@ export async function generateArrivalEvents(): Promise<GameEvent[]> {
   }
 
   // 特殊ライフイベント（5%の確率）
-  if (Math.random() < 0.05) {
-    const specialEvent = getRandomSpecialLifeEvent();
-    events.push({ type: 'special_life_event', data: specialEvent });
-  }
+  // TODO: 表示コンポーネントが実装されるまで一時的に無効化
+  // if (Math.random() < 0.05) {
+  //   const specialEvent = getRandomSpecialLifeEvent();
+  //   events.push({ type: 'special_life_event', data: specialEvent });
+  // }
 
   return events;
 }
@@ -87,11 +88,12 @@ export async function generateTravelEvents(): Promise<GameEvent[]> {
     if (scenario) {
       events.push({ type: 'encouragement_gratitude', data: scenario });
     }
-  } else if (eventRoll < 0.78) {
-    // 8%: 特殊ライフイベント
-    const specialEvent = getRandomSpecialLifeEvent();
-    events.push({ type: 'special_life_event', data: specialEvent });
-  }
+  } // TODO: 表示コンポーネントが実装されるまで一時的に無効化
+  // else if (eventRoll < 0.78) {
+  //   // 8%: 特殊ライフイベント
+  //   const specialEvent = getRandomSpecialLifeEvent();
+  //   events.push({ type: 'special_life_event', data: specialEvent });
+  // }
 
   return events;
 }

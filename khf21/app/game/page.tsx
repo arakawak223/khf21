@@ -7,9 +7,15 @@ import { EVENT_BGM_MAP, SCREEN_BGM_MAP } from '@/lib/game/bgmManager';
 import GameSetup from '@/components/game/GameSetup';
 import Dice3D from '@/components/game/Dice3D';
 import DestinationRoulette from '@/components/game/DestinationRoulette';
+import DestinationChoice from '@/components/game/DestinationChoice';
 import DestinationIntro from '@/components/game/DestinationIntro';
 import ArrivalSelection from '@/components/game/ArrivalSelection';
 import WorldMap from '@/components/game/WorldMap';
+import ResizableMapContainer from '@/components/game/ResizableMapContainer';
+import ResizablePanels from '@/components/game/ResizablePanels';
+import CardHand from '@/components/game/CardHand';
+import MissionPanel from '@/components/game/MissionPanel';
+import MultiplayerFlow from '@/components/game/multiplayer/MultiplayerFlow';
 import PointsDisplay from '@/components/game/PointsDisplay';
 import GameProgress from '@/components/game/GameProgress';
 import AudioControls from '@/components/game/AudioControls';
@@ -48,6 +54,13 @@ import type { Airport, Attraction, Star, Art, Gourmet, Trouble, GiverScenario, E
 import { TurnIndicator } from '@/components/game/TurnIndicator';
 import { PlayerList } from '@/components/game/PlayerList';
 import { FreemanAI } from '@/lib/game/freemanAI';
+import { initializeAllPlayersStrategy } from '@/lib/game/playerInitializer';
+import { generateDestinationCandidates, selectRandomChooser } from '@/lib/game/destinationSelector';
+import { calculateArrivalBonus, updateCityOccupation, detectOvertake } from '@/lib/game/strategyLogic';
+import type { DestinationCandidate, CityOccupation } from '@/types/strategy.types';
+
+// フリーマンのポイントバランス調整用倍率
+const FREEMAN_POINT_MULTIPLIER = 2.0; // フリーマンは人間プレイヤーの2倍のポイントを獲得
 
 function GameContent() {
   const {
@@ -71,7 +84,7 @@ function GameContent() {
   const { playBGM, stopBGM, playDiceSteps, playFanfare } = useAudio();
 
   const [airports, setAirports] = useState<Airport[]>([]);
-  const [gameState, setGameState] = useState<'setup' | 'playing' | 'completed'>('setup');
+  const [gameState, setGameState] = useState<'setup' | 'online_multiplayer' | 'playing' | 'completed'>('setup');
   const [screenState, setScreenState] = useState<
     'map' | 'destination_roulette' | 'destination_intro' | 'movement_roulette' | 'arrival_selection' | 'events'
   >('map');
@@ -102,6 +115,13 @@ function GameContent() {
   const [freemanActionMessage, setFreemanActionMessage] = useState<string>('');
   const [freemanRollingDice, setFreemanRollingDice] = useState(false);
   const [freemanDiceProcessing, setFreemanDiceProcessing] = useState(false);
+
+  // 目的地3択システム用
+  const [destinationCandidates, setDestinationCandidates] = useState<DestinationCandidate[]>([]);
+  const [chooserPlayerId, setChooserPlayerId] = useState<string | null>(null);
+
+  // 都市占有システム用
+  const [cityOccupations, setCityOccupations] = useState<Map<string, CityOccupation>>(new Map());
 
   // 空港データ取得
   useEffect(() => {
@@ -170,8 +190,16 @@ function GameContent() {
     periodDays: number,
     periodName: string,
     startingAirportId: string,
-    nickname?: string
+    nickname?: string,
+    isMultiplayer?: boolean,
+    includeFreeman?: boolean,
+    isOnlineMultiplayer?: boolean
   ) => {
+    // オンラインマルチプレイヤーの場合は専用フローへ
+    if (isOnlineMultiplayer) {
+      setGameState('online_multiplayer');
+      return;
+    }
     try {
       setLoading(true);
       console.log('=== Game Start Debug ===');
@@ -217,9 +245,16 @@ function GameContent() {
       setStartingAirportId(startingAirportId);
       setVisitedAirportIds([startingAirportId]);
 
-      // 開発中は常にゲストセッションを使用
       // ゲストセッションを作成（DBに保存しない）
       const sessionId = 'guest-session-' + Date.now();
+
+      // マルチプレイヤーモードの判定（デフォルトはtrue）
+      const multiplayerMode = isMultiplayer !== false;
+      const withFreeman = includeFreeman !== false && multiplayerMode;
+
+      console.log('Game mode:', multiplayerMode ? 'Multiplayer' : 'Single player');
+      console.log('Include Freeman:', withFreeman);
+
       const guestSession: any = {
         id: sessionId,
         user_id: userId,
@@ -240,13 +275,13 @@ function GameContent() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         // 複数プレイヤー対応
-        is_multiplayer: true,
-        total_players: 2,
+        is_multiplayer: multiplayerMode,
+        total_players: withFreeman ? 2 : 1,
         current_turn_order: 1,
       };
 
-      // 複数プレイヤーシステム: 2プレイヤーを作成（人間 + Dフリーマン）
-      console.log('Creating 2 players: Human + D-Freeman...');
+      // プレイヤー作成
+      const allPlayers: any[] = [];
 
       // プレイヤー1: 人間
       const humanPlayer: any = {
@@ -256,49 +291,85 @@ function GameContent() {
         player_order: 1,
         player_nickname: playerNickname,
         player_color: '#3b82f6', // 青
+        nationality: 'Japan', // デフォルトの国籍
         current_location_type: 'airport',
         current_airport_id: startingAirportId,
+        current_port_id: null,
         current_space_number: 0,
         route_spaces: null,
         impressed_points: 0,
         giver_points: 0,
         total_points: 0,
+        resource_points: 1000, // 初期資源ポイント
+        total_spent_points: 0,
+        current_flight_class: 'economy',
+        current_hotel_grade: 'standard',
+        star_encounter_bonus: 0,
+        character_trait: 'balanced',
+        trait_long_distance_bonus: 0,
+        trait_event_rate_modifier: 0,
         is_skipping_turn: false,
         freeman_type: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
+      allPlayers.push(humanPlayer);
 
-      // プレイヤー2: Dフリーマン（対戦型）
-      const freemanPlayer: any = {
-        id: 'player-freeman-' + Date.now(),
-        game_session_id: sessionId,
-        player_type: 'freeman_d',
-        player_order: 2,
-        player_nickname: 'Dフリーマン',
-        player_color: '#ef4444', // 赤
-        current_location_type: 'airport',
-        current_airport_id: startingAirportId,
-        current_space_number: 0,
-        route_spaces: null,
-        impressed_points: 0,
-        giver_points: 0,
-        total_points: 0,
-        is_skipping_turn: false,
-        freeman_type: 'defense',
-      };
+      // マルチプレイヤーモードでフリーマンを含める場合
+      if (withFreeman) {
+        console.log('Creating D-Freeman opponent...');
+        const freemanPlayer: any = {
+          id: 'player-freeman-' + Date.now(),
+          game_session_id: sessionId,
+          player_type: 'freeman_d',
+          player_order: 2,
+          player_nickname: 'Dフリーマン',
+          player_color: '#ef4444', // 赤
+          nationality: 'AI', // AI国籍
+          current_location_type: 'airport',
+          current_airport_id: startingAirportId,
+          current_port_id: null,
+          current_space_number: 0,
+          route_spaces: null,
+          impressed_points: 0,
+          giver_points: 0,
+          total_points: 0,
+          resource_points: 1000,
+          total_spent_points: 0,
+          current_flight_class: 'economy',
+          current_hotel_grade: 'standard',
+          star_encounter_bonus: 0,
+          character_trait: 'balanced',
+          trait_long_distance_bonus: 0,
+          trait_event_rate_modifier: 0,
+          is_skipping_turn: false,
+          freeman_type: 'defense',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        allPlayers.push(freemanPlayer);
+      }
 
-      console.log('Players created:', { humanPlayer, freemanPlayer });
+      console.log('Players created:', allPlayers);
+
+      // プレイヤーにカードとミッションを初期化（マルチプレイヤー時のみ）
+      let finalPlayers = allPlayers;
+      if (multiplayerMode) {
+        finalPlayers = initializeAllPlayersStrategy(allPlayers);
+        console.log('Players initialized with cards and missions:', finalPlayers);
+      }
 
       // GameContextに設定
-      setPlayers([humanPlayer, freemanPlayer]);
-      setCurrentTurnPlayer(humanPlayer); // 最初は人間のターン
+      setPlayers(finalPlayers);
+      setCurrentTurnPlayer(finalPlayers[0]); // 最初は人間のターン
 
       setCurrentAirport(airport);
       setGameSession(guestSession);
       setGameState('playing');
 
-      console.log('Game started in multiplayer mode with 2 players');
-      console.log('Current turn player:', humanPlayer.player_nickname);
-      console.log('Is multiplayer:', guestSession.is_multiplayer);
+      console.log(`Game started in ${multiplayerMode ? 'multiplayer' : 'single player'} mode`);
+      console.log('Total players:', finalPlayers.length);
+      console.log('Current turn player:', finalPlayers[0].player_nickname);
     } catch (err) {
       console.error('=== Game Start Error ===');
       console.error('Error object:', err);
@@ -387,6 +458,42 @@ function GameContent() {
     // 移動ルーレット画面へ遷移
     console.log(`Departing to destination. Total spaces: ${routeSpaces.length}`);
     setScreenState('movement_roulette');
+  };
+
+  // 目的地選択を開始（3択システム）
+  const handleStartDestinationSelection = () => {
+    if (!currentAirport || players.length === 0) return;
+
+    console.log('目的地選択を開始: 3択システム');
+
+    // 訪問済み空港を収集
+    const visitedCodes = visitedAirportIds.map(id => {
+      const airport = airports.find(a => a.id === id);
+      return airport?.code || '';
+    }).filter(code => code !== '');
+
+    // 占有都市情報を構築（実装予定 - 今は空のMapを使用）
+    const occupiedCities = new Map<string, { playerId: string; level: number }>();
+
+    // 3つの目的地候補を生成
+    const candidates = generateDestinationCandidates(
+      currentAirport,
+      airports,
+      visitedCodes,
+      players,
+      currentTurnPlayer?.id || '',
+      occupiedCities
+    );
+
+    // ランダムに選択者を決定
+    const chooser = selectRandomChooser(players);
+
+    console.log(`目的地候補を生成:`, candidates.map(c => c.airport.city));
+    console.log(`選択者: ${chooser.player_nickname} (${chooser.player_type})`);
+
+    setDestinationCandidates(candidates);
+    setChooserPlayerId(chooser.id);
+    setScreenState('destination_roulette'); // 画面状態は同じものを使用
   };
 
   // 目的地ルーレット完了時（ランダムに目的地を決定）
@@ -647,6 +754,59 @@ function GameContent() {
           const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
           if (updatedCurrentPlayer) {
             setCurrentTurnPlayer(updatedCurrentPlayer);
+
+            // 追い抜きイベント検出
+            const otherPlayers = updatedPlayers.filter(p => p.id !== updatedCurrentPlayer.id);
+            const overtakeEvent = detectOvertake(updatedCurrentPlayer, otherPlayers);
+
+            if (overtakeEvent) {
+              const overtakenPlayer = otherPlayers.find(p => p.id === overtakeEvent.overtaken);
+
+              // フリーマンの場合はポイントを倍増
+              const isFreeman = updatedCurrentPlayer.player_type === 'freeman_d' || updatedCurrentPlayer.player_type === 'freeman_s';
+              const multiplier = isFreeman ? FREEMAN_POINT_MULTIPLIER : 1.0;
+              const adjustedBonus = Math.floor(overtakeEvent.bonusPoints * multiplier);
+
+              console.log(`🏃 追い抜きイベント発生！`);
+              console.log(`  追い抜いた: ${updatedCurrentPlayer.player_nickname}`);
+              console.log(`  追い抜かれた: ${overtakenPlayer?.player_nickname}`);
+              console.log(`  ボーナスポイント: +${adjustedBonus}pt${isFreeman ? ` (フリーマンボーナス: ${multiplier}x)` : ''}`);
+
+              // ボーナスポイントを付与
+              const playersWithBonus = updatedPlayers.map(p =>
+                p.id === updatedCurrentPlayer.id
+                  ? {
+                      ...p,
+                      total_points: p.total_points + adjustedBonus,
+                      impressed_points: p.impressed_points + adjustedBonus,
+                    }
+                  : p
+              );
+
+              // 統計情報を更新
+              const finalPlayers = playersWithBonus.map(p => {
+                if (p.id === updatedCurrentPlayer.id) {
+                  return {
+                    ...p,
+                    statistics: {
+                      ...p.statistics,
+                      overtakeCount: (p.statistics?.overtakeCount || 0) + 1,
+                    } as any,
+                  };
+                } else if (p.id === overtakenPlayer?.id) {
+                  return {
+                    ...p,
+                    statistics: {
+                      ...p.statistics,
+                      overtakenCount: (p.statistics?.overtakenCount || 0) + 1,
+                    } as any,
+                  };
+                }
+                return p;
+              });
+
+              return finalPlayers;
+            }
           }
           return updatedPlayers;
         });
@@ -678,24 +838,56 @@ function GameContent() {
   const handleArrivalSelection = async (option: { type: 'attraction' | 'art' | 'gourmet'; data: any }) => {
     console.log('Selected arrival option:', option.type);
 
-    // 先行到着ボーナスポイントを計算
+    // 先行到着ボーナス・都市占有システム
     let arrivalBonus = 0;
+    let tollFee = 0;
+    let isFirstArrival = false;
+    let rank = 1;
+
     if (destinationAirport && currentTurnPlayer) {
       const destId = destinationAirport.id;
       const currentSelections = destinationSelections[destId] || { arrivedPlayers: [] };
-      const isFirstArrival = currentSelections.arrivedPlayers.length === 0;
 
-      // 先行到着者の場合、移動距離に応じてボーナスポイント
-      if (isFirstArrival) {
-        if (travelDistance < 500) {
-          arrivalBonus = 100;
-        } else if (travelDistance < 1000) {
-          arrivalBonus = 150;
-        } else {
-          arrivalBonus = 200;
-        }
-        console.log(`先行到着ボーナス: ${arrivalBonus}pt (距離: ${travelDistance}km)`);
-      }
+      // 新しいボーナス計算システムを使用
+      const bonusResult = calculateArrivalBonus(
+        destId,
+        travelDistance,
+        cityOccupations,
+        currentTurnPlayer.id
+      );
+
+      arrivalBonus = bonusResult.bonus;
+      tollFee = bonusResult.tollFee;
+      isFirstArrival = bonusResult.isFirstArrival;
+      rank = bonusResult.rank;
+
+      console.log(`到着ボーナス: ${arrivalBonus}pt (順位: ${rank}, 初到着: ${isFirstArrival}, 通行料: ${tollFee}pt)`);
+
+      // 都市占有を更新
+      const newOccupations = updateCityOccupation(
+        destId,
+        destinationAirport.city,
+        currentTurnPlayer.id,
+        cityOccupations
+      );
+      setCityOccupations(newOccupations);
+
+      // プレイヤーの占有都市リストも更新
+      setPlayers((prevPlayers) => {
+        return prevPlayers.map((p) => {
+          if (p.id === currentTurnPlayer.id) {
+            const occupation = newOccupations.get(destId);
+            const occupiedCities = p.occupied_cities || [];
+            if (occupation && occupation.occupiedBy === p.id && !occupiedCities.includes(destId)) {
+              return {
+                ...p,
+                occupied_cities: [...occupiedCities, destId],
+              };
+            }
+          }
+          return p;
+        });
+      });
 
       // 選択済みアイテムを更新
       const updatedSelections = {
@@ -719,15 +911,20 @@ function GameContent() {
 
       console.log(`選択を記録: ${option.type} = ${option.data.id} (到着者数: ${updatedSelections.arrivedPlayers.length})`);
 
-      // 先行到着ボーナスをプレイヤーに即座に加算
-      if (arrivalBonus > 0) {
+      // 到着ボーナス（通行料を含む）をプレイヤーに即座に加算
+      if (arrivalBonus !== 0) {
+        // フリーマンの場合はポイントを倍増
+        const isFreeman = currentTurnPlayer.player_type === 'freeman_d' || currentTurnPlayer.player_type === 'freeman_s';
+        const multiplier = isFreeman ? FREEMAN_POINT_MULTIPLIER : 1.0;
+        const adjustedBonus = Math.floor(arrivalBonus * multiplier);
+
         setPlayers((prevPlayers) => {
           const updatedPlayers = prevPlayers.map((p) =>
             p.id === currentTurnPlayer.id
               ? {
                   ...p,
-                  impressed_points: p.impressed_points + arrivalBonus,
-                  total_points: p.total_points + arrivalBonus,
+                  impressed_points: Math.max(0, p.impressed_points + adjustedBonus),
+                  total_points: Math.max(0, p.total_points + adjustedBonus),
                 }
               : p
           );
@@ -738,7 +935,9 @@ function GameContent() {
             setCurrentTurnPlayer(updatedCurrentPlayer);
           }
 
-          console.log(`プレイヤー ${currentTurnPlayer.player_nickname} に先行到着ボーナス ${arrivalBonus}pt を付与`);
+          const bonusType = isFirstArrival ? '初到着ボーナス' : tollFee > 0 ? `到着ポイント（通行料-${tollFee}）` : '到着ポイント';
+          const logSuffix = isFreeman ? ` (フリーマンボーナス: ${multiplier}x)` : '';
+          console.log(`プレイヤー ${currentTurnPlayer.player_nickname} に${bonusType} ${adjustedBonus}pt を付与${logSuffix}`);
           return updatedPlayers;
         });
       }
@@ -776,7 +975,13 @@ function GameContent() {
 
     // ポイント更新
     if (points.impressed !== 0 || points.giver !== 0) {
-      updatePoints(points.impressed, points.giver);
+      // フリーマンの場合はポイントを倍増
+      const isFreeman = currentTurnPlayer?.player_type === 'freeman_d' || currentTurnPlayer?.player_type === 'freeman_s';
+      const multiplier = isFreeman ? FREEMAN_POINT_MULTIPLIER : 1.0;
+      const adjustedImpressed = Math.floor(points.impressed * multiplier);
+      const adjustedGiver = Math.floor(points.giver * multiplier);
+
+      updatePoints(adjustedImpressed, adjustedGiver);
 
       // Multiplayer: 現在のターンプレイヤーのポイントを更新
       if ((gameSession as any).is_multiplayer && currentTurnPlayer) {
@@ -785,9 +990,9 @@ function GameContent() {
             p.id === currentTurnPlayer.id
               ? {
                   ...p,
-                  impressed_points: p.impressed_points + points.impressed,
-                  giver_points: p.giver_points + points.giver,
-                  total_points: p.total_points + points.impressed + points.giver,
+                  impressed_points: p.impressed_points + adjustedImpressed,
+                  giver_points: p.giver_points + adjustedGiver,
+                  total_points: p.total_points + adjustedImpressed + adjustedGiver,
                 }
               : p
           );
@@ -798,7 +1003,8 @@ function GameContent() {
             setCurrentTurnPlayer(updatedCurrentPlayer);
           }
 
-          console.log(`${currentTurnPlayer.player_nickname} にポイント追加: +${points.impressed + points.giver}ポイント (感銘: ${points.impressed}, 感謝: ${points.giver})`);
+          const logSuffix = isFreeman ? ` (フリーマンボーナス: ${multiplier}x)` : '';
+          console.log(`${currentTurnPlayer.player_nickname} にポイント追加: +${adjustedImpressed + adjustedGiver}ポイント (感銘: ${adjustedImpressed}, 感謝: ${adjustedGiver})${logSuffix}`);
           return updatedPlayers;
         });
       }
@@ -1481,7 +1687,7 @@ function GameContent() {
     // イベント画面の場合は、イベントタイプに応じたBGMを再生
     if (screenState === 'events' && pendingEvents.length > 0) {
       const currentEvent = pendingEvents[currentEventIndex];
-      const bgmType = EVENT_BGM_MAP[currentEvent.type] || 'cheerful';
+      const bgmType = EVENT_BGM_MAP[currentEvent.type] || 'calm';
       playBGM(bgmType);
     } else {
       // その他の画面状態に応じたBGMを再生
@@ -1496,6 +1702,28 @@ function GameContent() {
 
   if (gameState === 'setup') {
     return <GameSetup airports={airports} onStart={handleStartGame} />;
+  }
+
+  // オンラインマルチプレイヤーフロー
+  if (gameState === 'online_multiplayer') {
+    return (
+      <MultiplayerFlow
+        airports={airports}
+        onGameStart={(settings) => {
+          // オンラインマルチプレイヤーゲームを開始
+          handleStartGame(
+            settings.periodDays,
+            settings.periodName,
+            settings.startingAirportId,
+            undefined,
+            true,
+            false,
+            false // これは通常のゲーム開始として処理
+          );
+        }}
+        onBack={() => setGameState('setup')}
+      />
+    );
   }
 
   if (!gameSession || !currentAirport) {
@@ -1536,12 +1764,18 @@ function GameContent() {
   const currentEvent = pendingEvents[currentEventIndex];
 
   return (
-    <div className="game-screen safe-area">
+    <div className="game-screen safe-area h-screen overflow-hidden">
       {/* オーディオ初期化プロンプト */}
       {!audioInitialized && <AudioInitializer onInitialized={() => setAudioInitialized(true)} />}
 
-      {/* ヘッダー: ポイントと進行状況 */}
-      <div className="p-2 bg-white dark:bg-gray-900 shadow-md">
+      <ResizablePanels
+        initialTopHeight={30}
+        minTopHeight={20}
+        maxTopHeight={50}
+        topPanel={
+          <>
+            {/* ヘッダー: ポイントと進行状況 */}
+            <div className="p-2 bg-white dark:bg-gray-900 shadow-md">
         <div className="mobile-container">
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
@@ -1571,103 +1805,46 @@ function GameContent() {
         </div>
       </div>
 
-      {/* 複数プレイヤーUI */}
-      {(gameSession as any).is_multiplayer && players.length > 0 && currentTurnPlayer && (
-        <div className="p-2 space-y-2">
-          <TurnIndicator
-            currentTurnPlayer={currentTurnPlayer}
-            isHumanTurn={currentTurnPlayer.player_type === 'human'}
-          />
-          <PlayerList
-            players={players}
-            currentTurnPlayer={currentTurnPlayer}
-            airports={airports}
-            destinationAirport={destinationAirport}
-          />
-        </div>
-      )}
-
-      {/* フリーマンアクションメッセージ */}
-      {freemanActionMessage && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
-          <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl shadow-2xl p-8 min-w-[400px] animate-in zoom-in duration-300">
-            <div className="text-center">
-              <div className="text-4xl mb-4 animate-pulse">
-                {freemanActionMessage.split(' ')[0]}
+            {/* 複数プレイヤーUI */}
+            {(gameSession as any).is_multiplayer && players.length > 0 && currentTurnPlayer && (
+              <div className="p-2 space-y-2">
+                <TurnIndicator
+                  currentTurnPlayer={currentTurnPlayer}
+                  isHumanTurn={currentTurnPlayer.player_type === 'human'}
+                />
+                <PlayerList
+                  players={players}
+                  currentTurnPlayer={currentTurnPlayer}
+                  airports={airports}
+                  destinationAirport={destinationAirport}
+                />
               </div>
-              <div className="text-xl font-bold">
-                {freemanActionMessage.substring(freemanActionMessage.indexOf(' ') + 1)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ゲームメニューモーダル */}
-      {showGameMenu && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">
-              ゲームメニュー
-            </h2>
-            <div className="flex flex-col gap-3">
-              <Button
-                onClick={() => setShowGameMenu(false)}
-                size="lg"
-                variant="outline"
-                className="w-full"
-              >
-                ↩️ ゲームに戻る
-              </Button>
-              <Button
-                onClick={() => {
-                  if (confirm('ゲームを中断しますか？\n進行状況は保存されます。')) {
-                    window.location.href = '/';
-                  }
-                }}
-                size="lg"
-                variant="outline"
-                className="w-full text-orange-600 border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
-              >
-                ⏸️ ゲームを中断
-              </Button>
-              <Button
-                onClick={() => {
-                  if (confirm('ゲームを終了しますか？\n現在の進行状況は失われます。')) {
-                    setGameState('setup');
-                    setGameSession(null);
-                    setCurrentAirport(null);
-                    setShowGameMenu(false);
-                  }
-                }}
-                size="lg"
-                variant="outline"
-                className="w-full text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                🚫 ゲームを終了
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
+            )}
+          </>
+        }
+        bottomPanel={
+          <>
       {/* メインコンテンツ */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="h-full overflow-y-auto p-2">
         <div className="mobile-container">
           <div className="flex flex-col gap-2">
-            {/* 世界地図 */}
-            <WorldMap
-              currentAirport={currentAirport}
-              destinationAirport={destinationAirport || undefined}
-              showRoute={!!destinationAirport}
-              playerNickname={gameSession.player_nickname || 'プレイヤー1'}
-              playerColor={gameSession.player_color || 'red'}
-              routeSpaces={currentTurnPlayer?.route_spaces || []}
-              currentSpace={currentTurnPlayer?.current_space_number || 0}
-              players={players}
-              currentPlayer={currentTurnPlayer || undefined}
-              airports={airports}
-            />
+            {/* 世界地図 - 目的地選択中・到着選択中・イベント表示中・サイコロ表示中は非表示 */}
+            {screenState !== 'destination_roulette' && screenState !== 'arrival_selection' && screenState !== 'events' && screenState !== 'destination_intro' && screenState !== 'movement_roulette' && !freemanRollingDice && (
+              <ResizableMapContainer initialHeight={400} minHeight={200} maxHeight={600}>
+                <WorldMap
+                  currentAirport={currentAirport}
+                  destinationAirport={destinationAirport || undefined}
+                  showRoute={!!destinationAirport}
+                  playerNickname={gameSession.player_nickname || 'プレイヤー1'}
+                  playerColor={gameSession.player_color || 'red'}
+                  routeSpaces={currentTurnPlayer?.route_spaces || []}
+                  currentSpace={currentTurnPlayer?.current_space_number || 0}
+                  players={players}
+                  currentPlayer={currentTurnPlayer || undefined}
+                  airports={airports}
+                />
+              </ResizableMapContainer>
+            )}
 
             {/* 画面状態に応じた表示 */}
             {screenState === 'map' && (
@@ -1680,14 +1857,14 @@ function GameContent() {
                       currentTurnPlayer.current_space_number >= (currentTurnPlayer.route_spaces?.length || 0)) && (
                       <>
                         <Button
-                          onClick={() => setScreenState('destination_roulette')}
+                          onClick={handleStartDestinationSelection}
                           size="lg"
                           className="touch-target text-xl font-bold py-6 bg-gradient-to-r from-blue-500 to-purple-600"
                         >
                           ✈️ 次の目的地へ
                         </Button>
                         <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-                          ルーレットで次の目的地を決めてください
+                          3つの候補から次の目的地を選択してください
                         </p>
                       </>
                     )}
@@ -1738,6 +1915,30 @@ function GameContent() {
             )}
 
             {screenState === 'destination_roulette' && (() => {
+              // 3択システム: 候補がある場合はDestinationChoiceを表示
+              if (destinationCandidates.length === 3 && chooserPlayerId) {
+                const chooser = players.find(p => p.id === chooserPlayerId);
+                return (
+                  <DestinationChoice
+                    candidates={destinationCandidates}
+                    chooserName={chooser?.player_nickname || '不明'}
+                    isCurrentPlayerChooser={chooserPlayerId === currentTurnPlayer?.id}
+                    onSelect={(airportId: string) => {
+                      // 選択された候補を探す
+                      const selectedCandidate = destinationCandidates.find(c => c.airport.id === airportId);
+                      if (selectedCandidate) {
+                        console.log(`目的地を選択: ${selectedCandidate.airport.city}`);
+                        handleDestinationSelected(selectedCandidate.airport);
+                      }
+                      // 候補をクリア
+                      setDestinationCandidates([]);
+                      setChooserPlayerId(null);
+                    }}
+                  />
+                );
+              }
+
+              // フォールバック: 従来のルーレットシステム
               // 利用可能な空港をフィルタ（現在地と訪問済みを除外）
               let availableAirports = airports.filter(a =>
                 a.id !== currentAirport.id &&
@@ -1793,6 +1994,9 @@ function GameContent() {
           </div>
         </div>
       </div>
+          </>
+        }
+      />
 
       {/* 目的地紹介画面 */}
       {screenState === 'destination_intro' && destinationAirport && (
@@ -1876,6 +2080,88 @@ function GameContent() {
             />
           )}
         </>
+      )}
+
+      {/* フリーマンアクションメッセージ */}
+      {freemanActionMessage && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
+          <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl shadow-2xl p-8 min-w-[400px] animate-in zoom-in duration-300">
+            <div className="text-center">
+              <div className="text-4xl mb-4 animate-pulse">
+                {freemanActionMessage.split(' ')[0]}
+              </div>
+              <div className="text-xl font-bold">
+                {freemanActionMessage.substring(freemanActionMessage.indexOf(' ') + 1)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ゲームメニューモーダル */}
+      {showGameMenu && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">
+              ゲームメニュー
+            </h2>
+            <div className="flex flex-col gap-3">
+              <Button
+                onClick={() => setShowGameMenu(false)}
+                size="lg"
+                variant="outline"
+                className="w-full"
+              >
+                ↩️ ゲームに戻る
+              </Button>
+              <Button
+                onClick={() => {
+                  if (confirm('ゲームを中断しますか？\n進行状況は保存されます。')) {
+                    window.location.href = '/';
+                  }
+                }}
+                size="lg"
+                variant="outline"
+                className="w-full text-orange-600 border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+              >
+                ⏸️ ゲームを中断
+              </Button>
+              <Button
+                onClick={() => {
+                  if (confirm('ゲームを終了しますか？\n現在の進行状況は失われます。')) {
+                    setGameState('setup');
+                    setGameSession(null);
+                    setCurrentAirport(null);
+                    setShowGameMenu(false);
+                  }
+                }}
+                size="lg"
+                variant="outline"
+                className="w-full text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                🚫 ゲームを終了
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* カード手札表示 */}
+      {currentTurnPlayer && currentTurnPlayer.cards && (
+        <CardHand
+          playerCards={currentTurnPlayer.cards}
+          isMyTurn={currentTurnPlayer.player_type === 'human'}
+          canUseCards={screenState === 'map'} // 地図画面でのみ使用可能
+          onUseCard={(cardId) => {
+            console.log('Card used:', cardId);
+            // TODO: カード使用ロジックを実装
+          }}
+        />
+      )}
+
+      {/* ミッション表示 */}
+      {currentTurnPlayer && currentTurnPlayer.missions && (
+        <MissionPanel playerMissions={currentTurnPlayer.missions} />
       )}
     </div>
   );

@@ -3,6 +3,7 @@
  */
 
 import type { Airport } from './database.types';
+import type { PlayerCard, PlayerMission, PlayerStatistics, ActiveEffect } from './strategy.types';
 
 /**
  * プレイヤータイプ
@@ -89,6 +90,13 @@ export interface GamePlayer {
   // 状態管理
   is_skipping_turn: boolean;
   freeman_type: FreemanType | null;
+
+  // 戦略的要素
+  cards?: PlayerCard[]; // 所持カード
+  missions?: PlayerMission[]; // 個人ミッション
+  occupied_cities?: string[]; // 占有中の都市ID
+  active_effects?: ActiveEffect[]; // 現在有効な効果
+  statistics?: PlayerStatistics; // 統計情報
 
   created_at: string;
   updated_at: string;

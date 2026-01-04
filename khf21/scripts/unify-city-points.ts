@@ -20,16 +20,15 @@ async function unifyCityPoints() {
     console.log(`\n📍 ${city} を修正中...`);
 
     // この都市のアートを50ptに更新
-    const { error: artsError, count: artsCount } = await supabase
+    const { error: artsError } = await supabase
       .from('arts')
       .update({ impressed_points: 50 })
-      .eq('city', city)
-      .select('*', { count: 'exact', head: true });
+      .eq('city', city);
 
     if (artsError) {
       console.error(`  ❌ ${city}のアート更新エラー:`, artsError);
     } else {
-      console.log(`  ✅ ${city}のアート ${artsCount || 0}件を50ptに統一`);
+      console.log(`  ✅ ${city}のアートを50ptに統一`);
     }
   }
 

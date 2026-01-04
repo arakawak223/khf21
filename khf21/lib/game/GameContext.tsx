@@ -25,7 +25,7 @@ interface GameContextType {
   resetGame: () => void;
 
   // プレイヤー管理
-  setPlayers: (players: GamePlayer[]) => void;
+  setPlayers: (players: GamePlayer[] | ((prev: GamePlayer[]) => GamePlayer[])) => void;
   setCurrentTurnPlayer: (player: GamePlayer | null) => void;
   updatePlayer: (playerId: string, updates: Partial<GamePlayer>) => void;
 
@@ -82,6 +82,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       // データベースに保存（非同期で実行）
       const saveToDatabase = async () => {
+        // ゲストセッションの場合はデータベース保存をスキップ
+        if (prev.id.startsWith('guest-session-')) {
+          console.log(`[GameContext] Skipping database save for guest session: ${prev.id}`);
+          return;
+        }
+
         try {
           console.log(`[GameContext] Attempting to save elapsed_days for session: ${prev.id}`);
 
@@ -134,8 +140,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // プレイヤー管理
-  const setPlayers = useCallback((newPlayers: GamePlayer[]) => {
-    setPlayersState(newPlayers);
+  const setPlayers = useCallback((newPlayers: GamePlayer[] | ((prev: GamePlayer[]) => GamePlayer[])) => {
+    if (typeof newPlayers === 'function') {
+      setPlayersState(newPlayers);
+    } else {
+      setPlayersState(newPlayers);
+    }
   }, []);
 
   const setCurrentTurnPlayer = useCallback((player: GamePlayer | null) => {
