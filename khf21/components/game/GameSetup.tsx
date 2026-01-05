@@ -37,6 +37,10 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
   const [isMultiplayer, setIsMultiplayer] = useState(true); // デフォルトでマルチプレイヤー
   const [includeFreeman, setIncludeFreeman] = useState(true); // デフォルトでフリーマンあり
 
+  const handleGuideOpen = () => {
+    window.open('/card-guide', '_blank');
+  };
+
   const selectedDestinationData = DESTINATION_COUNTS.find((d) => d.value === selectedDestinationCount);
 
   // 空港検索フィルター
@@ -91,9 +95,17 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
             <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-2">
               世界旅行を始めよう
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
               訪問する目的地の数と出発地を選択してください
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGuideOpen}
+              className="text-purple-600 border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+            >
+              🎯 ミッション&カードガイドを見る
+            </Button>
           </div>
 
           {/* ゲームモード選択 */}

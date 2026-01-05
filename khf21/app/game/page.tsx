@@ -409,10 +409,11 @@ function GameContent() {
     updateElapsedDays(days);
 
     // 目的地数チェック（到着時に目的地数の上限に達している場合はゲーム終了）
-    const newDestinationCount = destinationCount + 1;
-    console.log(`目的地チェック: ${newDestinationCount}箇所 / ${maxDestinations}箇所`);
+    // visitedAirportIdsには開始空港が含まれるため、-1して実際の訪問目的地数を計算
+    const visitedDestinationsCount = visitedAirportIds.length; // 現在の訪問済み数（開始空港含む）+ 今回到着した空港 = length + 1 - 1
+    console.log(`目的地チェック: ${visitedDestinationsCount}箇所 / ${maxDestinations}箇所`);
 
-    if (newDestinationCount >= maxDestinations) {
+    if (visitedDestinationsCount >= maxDestinations) {
       console.log('🎉 全ての目的地を訪問！ゲームを終了します');
       setGameState('completed');
       return;
@@ -510,11 +511,10 @@ function GameContent() {
     const distance = calculateDistance(currentAirport, destination);
     const days = calculateStayDays(distance);
 
-    // 目的地カウンターをインクリメント
-    const newCount = destinationCount + 1;
-    setDestinationCount(newCount);
+    // 次の目的地番号を計算（開始空港 + 訪問済み目的地 + 1）
+    const nextDestinationNumber = visitedAirportIds.length + 1;
 
-    console.log(`Selected destination: ${destination.city}, distance: ${distance}km, stay: ${days} days (目的地${newCount})`);
+    console.log(`Selected destination: ${destination.city}, distance: ${distance}km, stay: ${days} days (目的地${nextDestinationNumber})`);
 
     setDestinationAirport(destination);
     setTravelDistance(distance);
@@ -1709,11 +1709,13 @@ function GameContent() {
 
   // ゲーム終了チェック
   useEffect(() => {
-    if (destinationCount >= maxDestinations && maxDestinations > 0) {
+    // visitedAirportIdsには開始空港が含まれるため、-1して実際の訪問目的地数を計算
+    const visitedDestinationsCount = visitedAirportIds.length - 1;
+    if (visitedDestinationsCount >= maxDestinations && maxDestinations > 0) {
       console.log('🎉 全ての目的地を訪問しました！');
       setGameState('completed');
     }
-  }, [destinationCount, maxDestinations]);
+  }, [visitedAirportIds, maxDestinations]);
 
   // BGM管理 - 画面状態に応じてBGMを切り替え
   useEffect(() => {
@@ -1834,7 +1836,7 @@ function GameContent() {
               </Button>
             </div>
             <GameProgress
-              currentDestinations={destinationCount - 1}
+              currentDestinations={visitedAirportIds.length - 1}
               maxDestinations={maxDestinations}
               destinationLabel={destinationLabel}
               currentLocation={currentAirport.name_ja || currentAirport.name}
