@@ -85,7 +85,7 @@ export default function EncouragementGratitudeEvent({
         <div className="p-6 space-y-6">
           {/* ヘッダー */}
           <div className="text-center space-y-2">
-            <div className="text-6xl mb-2 animate-bounce">
+            <div className="text-6xl mb-1 animate-bounce">
               {getCategoryIcon(scenario.category)}
             </div>
             <h2 className="text-2xl font-bold text-purple-900 dark:text-purple-100">
@@ -100,8 +100,8 @@ export default function EncouragementGratitudeEvent({
 
           {/* きっかけステップ */}
           {currentStep === 'trigger' && (
-            <div className="space-y-4 animate-in slide-in-from-right duration-300">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-purple-200 dark:border-purple-700">
+            <div className="space-y-2 animate-in slide-in-from-right duration-300">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-purple-200 dark:border-purple-700">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-3xl">{getTriggerIcon(scenario.trigger_type)}</span>
                   <h3 className="text-lg font-semibold text-purple-800 dark:text-purple-200">
@@ -132,8 +132,8 @@ export default function EncouragementGratitudeEvent({
 
           {/* 背景ストーリーステップ */}
           {currentStep === 'story' && (
-            <div className="space-y-4 animate-in slide-in-from-right duration-300">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-purple-200 dark:border-purple-700">
+            <div className="space-y-2 animate-in slide-in-from-right duration-300">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-purple-200 dark:border-purple-700">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-2xl">📖</span>
                   <h3 className="text-lg font-semibold text-purple-800 dark:text-purple-200">
@@ -158,7 +158,7 @@ export default function EncouragementGratitudeEvent({
 
           {/* メッセージステップ */}
           {currentStep === 'message' && (
-            <div className="space-y-4 animate-in slide-in-from-right duration-300">
+            <div className="space-y-2 animate-in slide-in-from-right duration-300">
               <div className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-lg p-6 border-2 border-yellow-300 dark:border-yellow-700 shadow-lg">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-3xl">💝</span>
@@ -172,11 +172,11 @@ export default function EncouragementGratitudeEvent({
               </div>
 
               {/* ポイント表示 */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-purple-200 dark:border-purple-700">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-purple-200 dark:border-purple-700">
                 <div className="flex justify-center gap-6">
                   {scenario.impressed_points > 0 && (
                     <div className="text-center">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">感動体験</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">感動体験</p>
                       <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                         +{scenario.impressed_points}
                       </p>
@@ -184,7 +184,7 @@ export default function EncouragementGratitudeEvent({
                   )}
                   {scenario.giver_points > 0 && (
                     <div className="text-center">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">喜び提供</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">喜び提供</p>
                       <p className="text-2xl font-bold text-pink-600 dark:text-pink-400">
                         +{scenario.giver_points}
                       </p>

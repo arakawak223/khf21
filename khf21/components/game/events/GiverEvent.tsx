@@ -59,24 +59,24 @@ export default function GiverEvent({
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
         <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-in-up shadow-2xl">
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-2">
             {/* ヘッダー */}
             <div className="text-center space-y-2">
               <div className="text-6xl">🎁</div>
               <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
                 喜んでもらえました！
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-gray-600 dark:text-gray-400">
                 {getLocationLabel(scenario.location_type)}
               </p>
             </div>
 
             {/* 選択したアクション */}
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border-l-4 border-green-500">
-              <p className="text-sm font-semibold text-green-800 dark:text-green-200 mb-2">
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 border-l-4 border-green-500">
+              <p className="text-xs font-semibold text-green-800 dark:text-green-200 mb-1">
                 あなたの行動
               </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+              <p className="text-xs text-gray-700 dark:text-gray-300">
                 {selectedAction.text}
               </p>
             </div>
@@ -89,8 +89,8 @@ export default function GiverEvent({
             )}
 
             {/* ポイント表示 */}
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg p-4 space-y-2">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 text-center">
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg p-2 space-y-2">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 text-center">
                 獲得ポイント
               </p>
               <div className="flex justify-center">
@@ -109,11 +109,11 @@ export default function GiverEvent({
             </div>
 
             {/* メッセージ */}
-            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border-l-4 border-purple-500">
-              <p className="text-sm font-semibold text-purple-800 dark:text-purple-200 mb-2">
+            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
+              <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
                 ✨ 心温まる体験
               </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+              <p className="text-xs text-gray-700 dark:text-gray-300">
                 人に喜んでもらえることは、自分自身の喜びにもなります。
                 小さな親切や思いやりが、誰かの一日を明るくします。
                 旅先での温かい交流は、かけがえのない思い出となりました。
@@ -138,14 +138,14 @@ export default function GiverEvent({
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
       <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-in-up shadow-2xl">
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-2">
           {/* ヘッダー */}
           <div className="text-center space-y-2">
             <div className="text-6xl">🤝</div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
               {scenario.title}
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-xs text-gray-600 dark:text-gray-400">
               {getLocationLabel(scenario.location_type)}
             </p>
           </div>
@@ -157,7 +157,7 @@ export default function GiverEvent({
 
           {/* 行動選択 */}
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 text-center">
+            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 text-center">
               どうしますか？
             </p>
             {actionOptions.map((action, index) => (
@@ -173,7 +173,7 @@ export default function GiverEvent({
                     {index === 2 && '💛'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">
+                    <p className="text-xs text-gray-800 dark:text-gray-200 font-medium">
                       {action.text}
                     </p>
                     <p className="text-xs text-green-600 dark:text-green-400 mt-1">

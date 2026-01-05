@@ -76,14 +76,14 @@ export default function StarEvent({
       emoji="⭐"
       points={{ impressed: star.impressed_points }}
     >
-      <div className="space-y-4">
+      <div className="space-y-2">
         {/* カテゴリバッジ */}
         <div className="flex items-center justify-center gap-2">
-          <span className="px-3 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-full text-sm font-semibold">
+          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-full text-xs font-semibold">
             {getCategoryLabel(star.category)}
           </span>
           {star.nationality && (
-            <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full text-sm">
+            <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full text-sm">
               {star.nationality}
             </span>
           )}
@@ -97,17 +97,17 @@ export default function StarEvent({
 
         {/* 説明 */}
         {star.description && (
-          <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+          <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
             <p>{star.description}</p>
           </div>
         )}
 
         {/* 感動体験メッセージ */}
-        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border-l-4 border-purple-500">
-          <p className="text-sm font-semibold text-purple-800 dark:text-purple-200 mb-2">
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
+          <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
             ✨ 感動体験
           </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-xs text-gray-700 dark:text-gray-300">
             {star.category === 'musician' &&
               '生で聴いたことのあるあの歌声の持ち主に会えるなんて、夢のようです。音楽への情熱を直接感じることができて、心が震えました。'}
             {star.category === 'artist' &&
@@ -120,7 +120,7 @@ export default function StarEvent({
         </div>
 
         {/* 思い出メモ */}
-        <div className="text-center text-sm text-gray-500 dark:text-gray-400 italic">
+        <div className="text-center text-xs text-gray-500 dark:text-gray-400 italic">
           この出会いは一生の思い出になるでしょう
         </div>
       </div>

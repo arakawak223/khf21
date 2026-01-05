@@ -68,10 +68,10 @@ export default function TroubleEvent({
         points={{ impressed: resolution.impressed_points }}
         closeButtonText="次へ"
       >
-        <div className="space-y-4">
+        <div className="space-y-2">
           {/* ヘルパータイプバッジ */}
           <div className="flex items-center justify-center">
-            <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold">
+            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-xs font-semibold">
               {getHelperLabel(resolution.helper_type)}
             </span>
           </div>
@@ -83,22 +83,22 @@ export default function TroubleEvent({
 
           {/* 励ましの言葉 */}
           {resolution.encouragement_text && (
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border-l-4 border-green-500">
-              <p className="text-sm font-semibold text-green-800 dark:text-green-200 mb-2">
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 border-l-4 border-green-500">
+              <p className="text-xs font-semibold text-green-800 dark:text-green-200 mb-1">
                 💬 励ましの言葉
               </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+              <p className="text-xs text-gray-700 dark:text-gray-300 italic">
                 「{resolution.encouragement_text}」
               </p>
             </div>
           )}
 
           {/* 感動体験メッセージ */}
-          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border-l-4 border-purple-500">
-            <p className="text-sm font-semibold text-purple-800 dark:text-purple-200 mb-2">
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
+            <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
               ✨ 感動体験
             </p>
-            <p className="text-sm text-gray-700 dark:text-gray-300">
+            <p className="text-xs text-gray-700 dark:text-gray-300">
               困難な状況の中で、見知らぬ人が助けてくれました。
               人の優しさと温かさに触れ、心から感謝の気持ちでいっぱいです。
               この経験は、人と人との繋がりの大切さを改めて教えてくれました。
@@ -106,7 +106,7 @@ export default function TroubleEvent({
           </div>
 
           {/* 希望のメッセージ */}
-          <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-center text-xs text-gray-600 dark:text-gray-400">
             <p>
               {trouble.severity >= 3
                 ? '大変な状況でしたが、無事に解決しました。旅は続きます。'
@@ -131,10 +131,10 @@ export default function TroubleEvent({
       closeButtonText={resolution ? '続きを見る' : '次へ'}
       showPoints={!resolution}
     >
-      <div className="space-y-4">
+      <div className="space-y-2">
         {/* 重要度表示 */}
         <div className="flex items-center justify-center gap-2">
-          <span className="px-3 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-sm font-semibold">
+          <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-xs font-semibold">
             危険度: {'⭐'.repeat(trouble.severity)}
           </span>
         </div>
@@ -145,11 +145,11 @@ export default function TroubleEvent({
         </div>
 
         {/* 警告メッセージ */}
-        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border-l-4 border-red-500">
-          <p className="text-sm font-semibold text-red-800 dark:text-red-200 mb-2">
+        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-2 border-l-4 border-red-500">
+          <p className="text-xs font-semibold text-red-800 dark:text-red-200 mb-1">
             ⚠️ トラブル発生
           </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-xs text-gray-700 dark:text-gray-300">
             予期せぬトラブルに巻き込まれてしまいました。
             旅には様々な困難がつきものです。
             {trouble.impressed_points_loss < 0 &&
@@ -160,7 +160,7 @@ export default function TroubleEvent({
         </div>
 
         {resolution && (
-          <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-center text-xs text-gray-600 dark:text-gray-400">
             <p>しかし、助けが来るまでもう少しです...</p>
           </div>
         )}

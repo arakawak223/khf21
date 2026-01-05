@@ -40,14 +40,14 @@ export default function ArtEvent({ isOpen, onClose, art }: ArtEventProps) {
       emoji={getCategoryEmoji(art.category)}
       points={{ impressed: art.impressed_points }}
     >
-      <div className="space-y-4">
+      <div className="space-y-2">
         {/* カテゴリバッジ */}
         <div className="flex items-center justify-center gap-2">
-          <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 rounded-full text-sm font-semibold">
+          <span className="px-2 py-0.5 bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 rounded-full text-xs font-semibold">
             {getCategoryLabel(art.category)}
           </span>
           {art.country && (
-            <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full text-sm">
+            <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full text-sm">
               {art.country}
             </span>
           )}
@@ -61,11 +61,11 @@ export default function ArtEvent({ isOpen, onClose, art }: ArtEventProps) {
         )}
 
         {/* 鑑賞体験メッセージ */}
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-4 border-l-4 border-pink-500">
-          <p className="text-sm font-semibold text-pink-800 dark:text-pink-200 mb-2">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-2 border-l-4 border-pink-500">
+          <p className="text-xs font-semibold text-pink-800 dark:text-pink-200 mb-1">
             {getCategoryEmoji(art.category)} 鑑賞体験
           </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-xs text-gray-700 dark:text-gray-300">
             {art.category === 'concert' &&
               '生の音楽の迫力と美しさに圧倒されました。会場全体が一体となって音楽に包まれる感覚は、録音では決して味わえない特別なものです。'}
             {art.category === 'musical' &&
@@ -78,11 +78,11 @@ export default function ArtEvent({ isOpen, onClose, art }: ArtEventProps) {
         </div>
 
         {/* 感動体験メッセージ */}
-        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border-l-4 border-purple-500">
-          <p className="text-sm font-semibold text-purple-800 dark:text-purple-200 mb-2">
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
+          <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
             ✨ 感動体験
           </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-xs text-gray-700 dark:text-gray-300">
             この素晴らしいアート体験は、旅の最高の思い出の一つとなりました。芸術の持つ力を肌で感じ、心が豊かになる瞬間でした。
           </p>
         </div>
@@ -90,7 +90,7 @@ export default function ArtEvent({ isOpen, onClose, art }: ArtEventProps) {
         {/* 会場情報 */}
         {art.venue && (
           <div className="text-center">
-            <div className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
+            <div className="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-full">
               <span>📍</span>
               <span>{art.venue}</span>
             </div>

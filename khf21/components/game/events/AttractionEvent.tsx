@@ -33,27 +33,27 @@ export default function AttractionEvent({
       emoji="🏛️"
       points={{ impressed: attraction.impressed_points }}
     >
-      <div className="space-y-4">
+      <div className="space-y-2">
         {/* カテゴリバッジ */}
         <div className="flex items-center justify-center">
-          <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold">
+          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-xs font-semibold">
             {getCategoryLabel(attraction.category)}
           </span>
         </div>
 
         {/* 説明文 */}
         {attraction.description && (
-          <div className="text-gray-700 dark:text-gray-300">
+          <div className="text-gray-700 dark:text-gray-300 text-xs leading-snug">
             <p>{attraction.description}</p>
           </div>
         )}
 
         {/* 感動体験メッセージ */}
-        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border-l-4 border-purple-500">
-          <p className="text-sm font-semibold text-purple-800 dark:text-purple-200 mb-2">
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
+          <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
             ✨ 感動体験
           </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-xs text-gray-700 dark:text-gray-300 leading-snug">
             {attraction.category === 'world_heritage' &&
               'この世界遺産の壮大さと歴史の重みに深く感動しました。何世紀も前の人々の知恵と技術に圧倒されます。'}
             {attraction.category === 'scenic_spot' &&
