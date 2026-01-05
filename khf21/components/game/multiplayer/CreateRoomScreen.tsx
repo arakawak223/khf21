@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { GAME_PERIODS } from '@/lib/game/constants';
+import { DESTINATION_COUNTS } from '@/lib/game/constants';
 import type { Airport } from '@/types/database.types';
 
 interface CreateRoomScreenProps {
@@ -12,8 +12,8 @@ interface CreateRoomScreenProps {
   onCreateRoom: (settings: {
     roomName: string;
     playerNickname: string;
-    periodDays: number;
-    periodName: string;
+    destinationCount: number;
+    destinationLabel: string;
     startingAirportId: string;
     maxPlayers: number;
   }) => void;
@@ -29,12 +29,12 @@ export default function CreateRoomScreen({
 }: CreateRoomScreenProps) {
   const [roomName, setRoomName] = useState('');
   const [playerNickname, setPlayerNickname] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('1week');
+  const [selectedDestinationCount, setSelectedDestinationCount] = useState('5destinations');
   const [selectedAirportId, setSelectedAirportId] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const selectedPeriodData = GAME_PERIODS.find((p) => p.value === selectedPeriod);
+  const selectedDestinationData = DESTINATION_COUNTS.find((d) => d.value === selectedDestinationCount);
 
   // 空港検索フィルター
   const filteredAirports = airports.filter((airport) => {
@@ -49,15 +49,15 @@ export default function CreateRoomScreen({
   });
 
   const handleCreate = () => {
-    if (!selectedAirportId || !selectedPeriodData || !playerNickname.trim()) {
+    if (!selectedAirportId || !selectedDestinationData || !playerNickname.trim()) {
       return;
     }
 
     onCreateRoom({
       roomName: roomName.trim() || `${playerNickname}のルーム`,
       playerNickname: playerNickname.trim(),
-      periodDays: selectedPeriodData.days,
-      periodName: selectedPeriodData.label,
+      destinationCount: selectedDestinationData.count,
+      destinationLabel: selectedDestinationData.label,
       startingAirportId: selectedAirportId,
       maxPlayers,
     });
@@ -142,21 +142,21 @@ export default function CreateRoomScreen({
             </div>
           </div>
 
-          {/* 期間選択 */}
+          {/* 目的地数選択 */}
           <div>
             <Label className="text-base font-semibold mb-3 block">
-              旅の期間
+              訪問する目的地の数
             </Label>
             <div className="grid grid-cols-2 gap-3">
-              {GAME_PERIODS.map((period) => (
+              {DESTINATION_COUNTS.map((destination) => (
                 <button
-                  key={period.value}
-                  onClick={() => setSelectedPeriod(period.value)}
+                  key={destination.value}
+                  onClick={() => setSelectedDestinationCount(destination.value)}
                   disabled={isLoading}
                   className={`
                     touch-target p-4 rounded-lg border-2 transition-all
                     ${
-                      selectedPeriod === period.value
+                      selectedDestinationCount === destination.value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
                         : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
                     }
@@ -165,10 +165,10 @@ export default function CreateRoomScreen({
                 >
                   <div className="text-center">
                     <p className="font-bold text-gray-800 dark:text-gray-200">
-                      {period.label}
+                      {destination.label}
                     </p>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
-                      ({period.days}日間)
+                      ({destination.count}箇所訪問)
                     </p>
                   </div>
                 </button>

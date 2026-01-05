@@ -16,8 +16,8 @@ type ScreenState = 'select' | 'create' | 'join' | 'lobby';
 interface MultiplayerFlowProps {
   airports: Airport[];
   onGameStart: (settings: {
-    periodDays: number;
-    periodName: string;
+    destinationCount: number;
+    destinationLabel: string;
     startingAirportId: string;
     roomId: string;
     players: any[];
@@ -62,8 +62,8 @@ export default function MultiplayerFlow({
   const handleCreateRoom = async (settings: {
     roomName: string;
     playerNickname: string;
-    periodDays: number;
-    periodName: string;
+    destinationCount: number;
+    destinationLabel: string;
     startingAirportId: string;
     maxPlayers: number;
   }) => {
@@ -76,8 +76,8 @@ export default function MultiplayerFlow({
         settings.playerNickname,
         settings.roomName,
         {
-          periodDays: settings.periodDays,
-          periodName: settings.periodName,
+          destinationCount: settings.destinationCount,
+          destinationLabel: settings.destinationLabel,
           startingAirportId: settings.startingAirportId,
           includeFreeman: false,
         }
@@ -155,8 +155,8 @@ export default function MultiplayerFlow({
 
       // ゲームを開始
       onGameStart({
-        periodDays: room.game_settings.periodDays,
-        periodName: room.game_settings.periodName,
+        destinationCount: room.game_settings.destinationCount || room.game_settings.periodDays || 5,
+        destinationLabel: room.game_settings.destinationLabel || room.game_settings.periodName || '5箇所',
         startingAirportId: room.game_settings.startingAirportId || '',
         roomId: room.id,
         players: players,

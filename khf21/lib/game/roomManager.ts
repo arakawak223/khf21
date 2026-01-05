@@ -13,8 +13,10 @@ export interface GameRoom {
   max_players: number;
   current_players: number;
   game_settings: {
-    periodDays: number;
-    periodName: string;
+    destinationCount?: number;
+    destinationLabel?: string;
+    periodDays?: number; // 後方互換性のため残す
+    periodName?: string; // 後方互換性のため残す
     includeFreeman: boolean;
     startingAirportId: string | null;
   };
@@ -58,8 +60,8 @@ export class RoomManager {
 
     // デフォルト設定
     const defaultSettings: GameRoom['game_settings'] = {
-      periodDays: 7,
-      periodName: '1週間',
+      destinationCount: 5,
+      destinationLabel: '5箇所',
       includeFreeman: false,
       startingAirportId: null,
       ...gameSettings,

@@ -180,13 +180,22 @@ export const BGM_URLS = {
   ],
 } as const;
 
-// ゲーム期間設定（5パターン固定）
+// ゲーム期間設定（5パターン固定）- 非推奨：目的地数設定を使用してください
 export const GAME_PERIODS = [
   { value: '1week', label: '1週間', days: 7 },
   { value: '2weeks', label: '2週間', days: 14 },
   { value: '1month', label: '1か月', days: 30 },
   { value: '3months', label: '3か月', days: 90 },
   { value: '6months', label: '6か月', days: 180 },
+] as const;
+
+// 目的地数設定（5パターン）
+export const DESTINATION_COUNTS = [
+  { value: '3destinations', label: '3箇所', count: 3 },
+  { value: '5destinations', label: '5箇所', count: 5 },
+  { value: '10destinations', label: '10箇所', count: 10 },
+  { value: '20destinations', label: '20箇所', count: 20 },
+  { value: '50destinations', label: '50箇所', count: 50 },
 ] as const;
 
 // アニメーション時間（ミリ秒）

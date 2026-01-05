@@ -4,29 +4,29 @@ import { Card } from '@/components/ui/card';
 import { formatGameProgress } from '@/lib/game/utils';
 
 interface GameProgressProps {
-  elapsedDays: number;
-  totalDays: number;
+  currentDestinations: number;
+  maxDestinations: number;
   currentLocation: string;
-  periodName?: string;
+  destinationLabel?: string;
 }
 
 export default function GameProgress({
-  elapsedDays,
-  totalDays,
+  currentDestinations,
+  maxDestinations,
   currentLocation,
-  periodName,
+  destinationLabel,
 }: GameProgressProps) {
-  const remainingDays = totalDays - elapsedDays;
-  const progressPercentage = (elapsedDays / totalDays) * 100;
+  const remainingDestinations = maxDestinations - currentDestinations;
+  const progressPercentage = (currentDestinations / maxDestinations) * 100;
 
   return (
     <Card className="p-4 shadow-lg">
       <div className="flex flex-col gap-3">
-        {/* 期間表示 */}
-        {periodName && (
+        {/* 目的地数表示 */}
+        {destinationLabel && (
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {periodName}の旅
+              {destinationLabel}の旅
             </p>
           </div>
         )}
@@ -41,18 +41,18 @@ export default function GameProgress({
           </div>
         </div>
 
-        {/* 日数表示 */}
+        {/* 目的地数表示 */}
         <div className="flex justify-between items-center text-sm">
           <div className="flex flex-col items-start">
-            <span className="text-gray-600 dark:text-gray-400">経過日数</span>
+            <span className="text-gray-600 dark:text-gray-400">訪問済み</span>
             <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-              {elapsedDays}日
+              {currentDestinations}箇所
             </span>
           </div>
           <div className="flex flex-col items-end">
-            <span className="text-gray-600 dark:text-gray-400">残り日数</span>
+            <span className="text-gray-600 dark:text-gray-400">残り</span>
             <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
-              {remainingDays}日
+              {remainingDestinations}箇所
             </span>
           </div>
         </div>
@@ -72,17 +72,17 @@ export default function GameProgress({
           </div>
         </div>
 
-        {/* 残り日数の警告 */}
-        {remainingDays <= 5 && remainingDays > 0 && elapsedDays > 0 && (
+        {/* 残り目的地の警告 */}
+        {remainingDestinations <= 2 && remainingDestinations > 0 && currentDestinations > 0 && (
           <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg text-center">
             <p className="text-xs text-yellow-800 dark:text-yellow-200">
-              旅の終わりが近づいています
+              旅の終わりが近づいています（残り{remainingDestinations}箇所）
             </p>
           </div>
         )}
 
         {/* 旅の始まり */}
-        {elapsedDays === 0 && (
+        {currentDestinations === 0 && (
           <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg text-center">
             <p className="text-xs text-blue-800 dark:text-blue-200 font-semibold">
               ✈️ 素晴らしい旅の始まりです！
@@ -90,10 +90,10 @@ export default function GameProgress({
           </div>
         )}
 
-        {remainingDays <= 0 && (
+        {remainingDestinations <= 0 && (
           <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg text-center">
             <p className="text-xs text-red-800 dark:text-red-200 font-semibold">
-              旅の期間が終了しました
+              全ての目的地を訪問しました
             </p>
           </div>
         )}

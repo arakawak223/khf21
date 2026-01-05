@@ -92,7 +92,9 @@ function GameContent() {
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [selectedGiverPoints, setSelectedGiverPoints] = useState(0);
   const [destinationAirport, setDestinationAirport] = useState<Airport | null>(null);
-  const [destinationCount, setDestinationCount] = useState<number>(0); // 目的地の順番カウンター
+  const [destinationCount, setDestinationCount] = useState<number>(1); // 目的地の順番カウンター（1から開始）
+  const [maxDestinations, setMaxDestinations] = useState<number>(5); // 最大目的地数（デフォルト5箇所）
+  const [destinationLabel, setDestinationLabel] = useState<string>('5箇所'); // 目的地ラベル
   const [travelDistance, setTravelDistance] = useState<number>(0);
   const [stayDays, setStayDays] = useState<number>(0);
   const [routeSpaces, setRouteSpaces] = useState<Array<{ lat: number; lng: number; spaceNumber: number }>>([]);
@@ -190,8 +192,8 @@ function GameContent() {
 
   // ゲーム開始
   const handleStartGame = async (
-    periodDays: number,
-    periodName: string,
+    destinationCount: number,
+    destinationLabel: string,
     startingAirportId: string,
     nickname?: string,
     isMultiplayer?: boolean,
@@ -206,7 +208,7 @@ function GameContent() {
     try {
       setLoading(true);
       console.log('=== Game Start Debug ===');
-      console.log('1. Starting game with:', { periodDays, periodName, startingAirportId });
+      console.log('1. Starting game with:', { destinationCount, destinationLabel, startingAirportId });
       console.log('2. Airports loaded:', airports.length);
       console.log('3. Airports data:', airports.slice(0, 2)); // Show first 2 airports
 
@@ -258,13 +260,17 @@ function GameContent() {
       console.log('Game mode:', multiplayerMode ? 'Multiplayer' : 'Single player');
       console.log('Include Freeman:', withFreeman);
 
+      // 目的地数とラベルを保存
+      setMaxDestinations(destinationCount);
+      setDestinationLabel(destinationLabel);
+
       const guestSession: any = {
         id: sessionId,
         user_id: userId,
         period_setting_id: '',
         start_date: new Date().toISOString(),
-        total_days: periodDays,
-        elapsed_days: 0,
+        max_destinations: destinationCount,
+        current_destinations: 0,
         current_location_type: 'airport',
         current_airport_id: startingAirportId,
         current_port_id: null,
@@ -399,19 +405,17 @@ function GameContent() {
     // 訪問済み空港に追加
     setVisitedAirportIds(prev => [...prev, destination.id]);
 
-    // 経過日数を加算
+    // 経過日数を加算（滞在日数のトラッキングは残す）
     updateElapsedDays(days);
 
-    // 期間超過チェック（到着時に期間を超えている場合はゲーム終了）
-    if (gameSession) {
-      const newElapsedDays = gameSession.elapsed_days + days;
-      console.log(`期間チェック: ${newElapsedDays}日 / ${gameSession.total_days}日`);
+    // 目的地数チェック（到着時に目的地数の上限に達している場合はゲーム終了）
+    const newDestinationCount = destinationCount + 1;
+    console.log(`目的地チェック: ${newDestinationCount}箇所 / ${maxDestinations}箇所`);
 
-      if (newElapsedDays >= gameSession.total_days) {
-        console.log('🎉 期間終了！ゲームを終了します');
-        setGameState('completed');
-        return;
-      }
+    if (newDestinationCount >= maxDestinations) {
+      console.log('🎉 全ての目的地を訪問！ゲームを終了します');
+      setGameState('completed');
+      return;
     }
 
     // Multiplayer: 現在のターンプレイヤーの状態を更新（目的地到達）
@@ -1705,10 +1709,11 @@ function GameContent() {
 
   // ゲーム終了チェック
   useEffect(() => {
-    if (gameSession && gameSession.elapsed_days >= gameSession.total_days) {
+    if (destinationCount >= maxDestinations && maxDestinations > 0) {
+      console.log('🎉 全ての目的地を訪問しました！');
       setGameState('completed');
     }
-  }, [gameSession]);
+  }, [destinationCount, maxDestinations]);
 
   // BGM管理 - 画面状態に応じてBGMを切り替え
   useEffect(() => {
@@ -1745,8 +1750,8 @@ function GameContent() {
         onGameStart={(settings) => {
           // オンラインマルチプレイヤーゲームを開始
           handleStartGame(
-            settings.periodDays,
-            settings.periodName,
+            settings.destinationCount,
+            settings.destinationLabel,
             settings.startingAirportId,
             undefined,
             true,
@@ -1829,8 +1834,9 @@ function GameContent() {
               </Button>
             </div>
             <GameProgress
-              elapsedDays={gameSession.elapsed_days}
-              totalDays={gameSession.total_days}
+              currentDestinations={destinationCount - 1}
+              maxDestinations={maxDestinations}
+              destinationLabel={destinationLabel}
               currentLocation={currentAirport.name_ja || currentAirport.name}
             />
             <AudioControls />

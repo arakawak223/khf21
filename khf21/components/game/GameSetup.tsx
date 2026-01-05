@@ -4,15 +4,15 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { GAME_PERIODS, BGM_URLS } from '@/lib/game/constants';
+import { DESTINATION_COUNTS, BGM_URLS } from '@/lib/game/constants';
 import { getBGMManager } from '@/lib/game/bgmManager';
 import type { Airport } from '@/types/database.types';
 
 interface GameSetupProps {
   airports: Airport[];
   onStart: (
-    periodDays: number,
-    periodName: string,
+    destinationCount: number,
+    destinationLabel: string,
     startingAirportId: string,
     nickname?: string,
     isMultiplayer?: boolean,
@@ -29,7 +29,7 @@ const BGM_OPTIONS = [
 ];
 
 export default function GameSetup({ airports, onStart }: GameSetupProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState('1week');
+  const [selectedDestinationCount, setSelectedDestinationCount] = useState('5destinations');
   const [selectedAirportId, setSelectedAirportId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [nickname, setNickname] = useState('');
@@ -37,7 +37,7 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
   const [isMultiplayer, setIsMultiplayer] = useState(true); // デフォルトでマルチプレイヤー
   const [includeFreeman, setIncludeFreeman] = useState(true); // デフォルトでフリーマンあり
 
-  const selectedPeriodData = GAME_PERIODS.find((p) => p.value === selectedPeriod);
+  const selectedDestinationData = DESTINATION_COUNTS.find((d) => d.value === selectedDestinationCount);
 
   // 空港検索フィルター
   const filteredAirports = airports.filter((airport) => {
@@ -54,11 +54,11 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
   const handleStart = () => {
     console.log('=== handleStart called ===');
     console.log('selectedAirportId:', selectedAirportId);
-    console.log('selectedPeriodData:', selectedPeriodData);
+    console.log('selectedDestinationData:', selectedDestinationData);
     console.log('selectedBGM:', selectedBGM);
 
-    if (!selectedAirportId || !selectedPeriodData) {
-      console.error('Cannot start: missing airportId or periodData');
+    if (!selectedAirportId || !selectedDestinationData) {
+      console.error('Cannot start: missing airportId or destinationData');
       return;
     }
 
@@ -73,8 +73,8 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
 
     console.log('Calling onStart...');
     onStart(
-      selectedPeriodData.days,
-      selectedPeriodData.label,
+      selectedDestinationData.count,
+      selectedDestinationData.label,
       selectedAirportId,
       nickname.trim() || undefined,
       isMultiplayer,
@@ -92,7 +92,7 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
               世界旅行を始めよう
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              旅の期間と出発地を選択してください
+              訪問する目的地の数と出発地を選択してください
             </p>
           </div>
 
@@ -275,20 +275,20 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
             </p>
           </div>
 
-          {/* 期間選択 */}
+          {/* 目的地数選択 */}
           <div>
             <Label className="text-base font-semibold mb-3 block">
-              旅の期間を選択
+              訪問する目的地の数を選択
             </Label>
             <div className="grid grid-cols-2 gap-3">
-              {GAME_PERIODS.map((period) => (
+              {DESTINATION_COUNTS.map((destination) => (
                 <button
-                  key={period.value}
-                  onClick={() => setSelectedPeriod(period.value)}
+                  key={destination.value}
+                  onClick={() => setSelectedDestinationCount(destination.value)}
                   className={`
                     touch-target p-4 rounded-lg border-2 transition-all
                     ${
-                      selectedPeriod === period.value
+                      selectedDestinationCount === destination.value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
                         : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
                     }
@@ -296,10 +296,10 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
                 >
                   <div className="text-center">
                     <p className="font-bold text-gray-800 dark:text-gray-200">
-                      {period.label}
+                      {destination.label}
                     </p>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
-                      ({period.days}日間)
+                      ({destination.count}箇所訪問)
                     </p>
                   </div>
                 </button>
@@ -381,10 +381,10 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
             旅を始める
           </Button>
 
-          {selectedPeriodData && selectedAirportId && (
+          {selectedDestinationData && selectedAirportId && (
             <div className="text-center text-sm text-gray-600 dark:text-gray-400 animate-fade-in">
               <p>
-                {selectedPeriodData.label}の旅に出発します
+                {selectedDestinationData.label}を訪問する旅に出発します
               </p>
             </div>
           )}
