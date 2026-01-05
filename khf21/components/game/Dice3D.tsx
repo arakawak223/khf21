@@ -332,14 +332,14 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
               key={`rivet-${angle}`}
               className="absolute"
               style={{
-                width: '16px',
-                height: '16px',
+                width: '12px',
+                height: '12px',
                 borderRadius: '50%',
                 background: 'radial-gradient(circle at 30% 30%, #e5c77a, #8b7355)',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.3)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.3)',
                 top: '50%',
                 left: '50%',
-                transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-200px)`,
+                transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-150px)`,
               }}
             />
           ))}
@@ -388,11 +388,11 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
                   <div
                     className="absolute top-1/2 left-1/2 origin-center"
                     style={{
-                      transform: `rotate(${angle}deg) translateY(-140px)`,
-                      width: '80px',
-                      height: '80px',
-                      marginLeft: '-40px',
-                      marginTop: '-40px',
+                      transform: `rotate(${angle}deg) translateY(-105px)`,
+                      width: '60px',
+                      height: '60px',
+                      marginLeft: '-30px',
+                      marginTop: '-30px',
                     }}
                   >
                     <div
@@ -401,21 +401,21 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
                         transform: `rotate(${-angle - rotation}deg)`,
                         background: 'linear-gradient(145deg, #ffffff 0%, #f5f5f5 50%, #e8e8e8 100%)',
                         boxShadow: `
-                          0 4px 8px rgba(0,0,0,0.3),
-                          inset 0 2px 4px rgba(255,255,255,0.8),
-                          inset 0 -2px 4px rgba(0,0,0,0.2),
-                          0 0 0 4px #ffd700,
-                          0 0 0 6px #d4af37
+                          0 3px 6px rgba(0,0,0,0.3),
+                          inset 0 1px 3px rgba(255,255,255,0.8),
+                          inset 0 -1px 3px rgba(0,0,0,0.2),
+                          0 0 0 3px #ffd700,
+                          0 0 0 4px #d4af37
                         `,
                       }}
                     >
                       <span
-                        className="text-5xl font-black"
+                        className="text-3xl font-black"
                         style={{
                           background: 'linear-gradient(180deg, #1a1a1a 0%, #4a4a4a 100%)',
                           WebkitBackgroundClip: 'text',
                           WebkitTextFillColor: 'transparent',
-                          filter: 'drop-shadow(0 2px 2px rgba(255,255,255,0.5))',
+                          filter: 'drop-shadow(0 1px 1px rgba(255,255,255,0.5))',
                         }}
                       >
                         {num}
@@ -427,11 +427,11 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
                   <div
                     className="absolute top-1/2 left-1/2 origin-center"
                     style={{
-                      transform: `rotate(${angle + anglePerNumber / 2}deg) translateY(-160px)`,
-                      width: '6px',
-                      height: '50px',
-                      marginLeft: '-3px',
-                      marginTop: '-25px',
+                      transform: `rotate(${angle + anglePerNumber / 2}deg) translateY(-120px)`,
+                      width: '4px',
+                      height: '35px',
+                      marginLeft: '-2px',
+                      marginTop: '-17.5px',
                     }}
                   >
                     <div
@@ -439,7 +439,7 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
                       style={{
                         background: 'linear-gradient(90deg, #b8941e 0%, #ffd700 50%, #b8941e 100%)',
                         boxShadow: `
-                          0 0 8px rgba(255,215,0,0.6),
+                          0 0 6px rgba(255,215,0,0.6),
                           inset 0 1px 2px rgba(255,255,255,0.5),
                           inset 0 -1px 2px rgba(0,0,0,0.3)
                         `,
@@ -455,8 +455,8 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
             <div
               className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
               style={{
-                width: '100px',
-                height: '100px',
+                width: '75px',
+                height: '75px',
               }}
             >
               {/* 外側の輪 */}
@@ -487,13 +487,13 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
               <div
                 className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full"
                 style={{
-                  width: '30px',
-                  height: '30px',
+                  width: '22px',
+                  height: '22px',
                   background: 'radial-gradient(circle at 30% 30%, #fff, #ffd700, #d4af37)',
                   boxShadow: `
-                    0 0 15px rgba(255,255,255,0.8),
-                    inset 0 2px 4px rgba(255,255,255,0.6),
-                    0 4px 8px rgba(0,0,0,0.3)
+                    0 0 12px rgba(255,255,255,0.8),
+                    inset 0 1px 3px rgba(255,255,255,0.6),
+                    0 3px 6px rgba(0,0,0,0.3)
                   `,
                 }}
               />
