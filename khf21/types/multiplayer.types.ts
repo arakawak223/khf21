@@ -36,6 +36,18 @@ export interface RouteSpace {
 }
 
 /**
+ * 目的地訪問履歴
+ */
+export interface DestinationVisit {
+  destinationNumber: number; // 目的地の順番（1, 2, 3...）
+  airportId: string;
+  airportName: string;
+  city: string;
+  pointsEarned: number; // この目的地で獲得したポイント
+  visitedAt: string;
+}
+
+/**
  * フライトクラス
  */
 export type FlightClass = 'economy' | 'business' | 'first';
@@ -97,6 +109,7 @@ export interface GamePlayer {
   occupied_cities?: string[]; // 占有中の都市ID
   active_effects?: ActiveEffect[]; // 現在有効な効果
   statistics?: PlayerStatistics; // 統計情報
+  visit_history?: DestinationVisit[]; // 目的地訪問履歴
 
   created_at: string;
   updated_at: string;

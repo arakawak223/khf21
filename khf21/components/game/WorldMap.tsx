@@ -18,6 +18,7 @@ interface WorldMapProps {
   players?: GamePlayer[];
   currentPlayer?: GamePlayer;
   airports?: Airport[]; // 全空港リスト（プレイヤー位置表示用）
+  destinationNumber?: number; // 目的地の順番（1, 2, 3...）
 }
 
 // Leaflet components loaded dynamically (client-side only)
@@ -61,6 +62,7 @@ export default function WorldMap({
   players = [],
   currentPlayer,
   airports = [],
+  destinationNumber = 0,
 }: WorldMapProps) {
   const [isClient, setIsClient] = useState(false);
   const [planeIcon, setPlaneIcon] = useState<any>(null);
@@ -599,7 +601,9 @@ export default function WorldMap({
                 <div className="text-center">
                   <div className="font-bold text-sm">🎯 {destinationAirport.city}</div>
                   <div className="text-xs text-gray-500">{destinationAirport.code}</div>
-                  <div className="text-xs text-amber-600 font-semibold">共通目的地</div>
+                  <div className="text-xs text-amber-600 font-semibold">
+                    {destinationNumber > 0 ? `目的地${destinationNumber}` : '共通目的地'}
+                  </div>
                 </div>
               </Tooltip>
             </CircleMarker>

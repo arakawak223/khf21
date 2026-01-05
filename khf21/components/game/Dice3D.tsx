@@ -277,7 +277,7 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
       )}
 
       {/* ルーレット表示エリア */}
-      <div className="relative w-full max-w-md" style={{ perspective: '1500px' }}>
+      <div className="relative w-full max-w-xs mx-auto px-2" style={{ perspective: '1500px' }}>
         {/* 上部の矢印インジケーター - 改善版 */}
         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-6 z-30">
           <div
@@ -294,7 +294,7 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
                 transform: 'scale(1.5)',
               }}
             />
-            <div className="text-7xl animate-bounce relative">
+            <div className="text-5xl animate-bounce relative">
               ⬇️
             </div>
           </div>
@@ -302,10 +302,9 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
 
         {/* ルーレット本体 */}
         <div
-          className="relative mx-auto"
+          className="relative mx-auto w-full aspect-square"
           style={{
-            width: '420px',
-            height: '420px',
+            maxWidth: '320px',
             transformStyle: 'preserve-3d',
             transform: 'rotateX(15deg)',
             filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.5))',

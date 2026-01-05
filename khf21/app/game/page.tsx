@@ -116,6 +116,9 @@ function GameContent() {
   const [freemanRollingDice, setFreemanRollingDice] = useState(false);
   const [freemanDiceProcessing, setFreemanDiceProcessing] = useState(false);
 
+  // 訪問履歴記録用: 到着前のポイント
+  const [arrivalStartPoints, setArrivalStartPoints] = useState<number>(0);
+
   // 目的地3択システム用
   const [destinationCandidates, setDestinationCandidates] = useState<DestinationCandidate[]>([]);
   const [chooserPlayerId, setChooserPlayerId] = useState<string | null>(null);
@@ -838,6 +841,11 @@ function GameContent() {
   const handleArrivalSelection = async (option: { type: 'attraction' | 'art' | 'gourmet'; data: any }) => {
     console.log('Selected arrival option:', option.type);
 
+    // 訪問履歴記録用: 到着前のポイントを記録
+    if (currentTurnPlayer) {
+      setArrivalStartPoints(currentTurnPlayer.total_points);
+    }
+
     // 先行到着ボーナス・都市占有システム
     let arrivalBonus = 0;
     let tollFee = 0;
@@ -1035,6 +1043,31 @@ function GameContent() {
         // 到達済み - 移動完了
         const destination = destinationAirport;
         if (destination && currentAirport) {
+          // 訪問履歴を記録
+          const pointsEarned = latestPlayer.total_points - arrivalStartPoints;
+          const visit = {
+            destinationNumber: destinationCount,
+            airportId: destination.id,
+            airportName: destination.name_ja || destination.name,
+            city: destination.city,
+            pointsEarned: pointsEarned,
+            visitedAt: new Date().toISOString(),
+          };
+
+          // プレイヤーの visit_history に追加
+          setPlayers((prevPlayers) => {
+            return prevPlayers.map((p) =>
+              p.id === latestPlayer.id
+                ? {
+                    ...p,
+                    visit_history: [...(p.visit_history || []), visit],
+                  }
+                : p
+            );
+          });
+
+          console.log(`訪問履歴を記録: ${destination.city} (目的地${destinationCount}) - ${pointsEarned}pt獲得`);
+
           const distance = calculateDistance(currentAirport, destination);
           const days = calculateStayDays(distance);
           await performMove(destination, distance, days);
@@ -1842,6 +1875,7 @@ function GameContent() {
                   players={players}
                   currentPlayer={currentTurnPlayer || undefined}
                   airports={airports}
+                  destinationNumber={destinationCount}
                 />
               </ResizableMapContainer>
             )}
