@@ -221,7 +221,29 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-6">
+    <div className="relative flex flex-col items-center justify-center gap-6">
+      {/* 左右のスワイプインジケーター */}
+      <div className="fixed left-0 top-0 bottom-0 w-6 z-20 pointer-events-none">
+        <div className="h-full relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/40 via-blue-500/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-400/30 to-transparent animate-pulse" />
+          {/* スワイプ方向インジケーター */}
+          <div className="absolute left-1 top-1/2 -translate-y-1/2 text-white/60 text-2xl animate-bounce">
+            ◀
+          </div>
+        </div>
+      </div>
+      <div className="fixed right-0 top-0 bottom-0 w-6 z-20 pointer-events-none">
+        <div className="h-full relative">
+          <div className="absolute inset-0 bg-gradient-to-l from-green-600/40 via-green-500/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-l from-green-400/30 to-transparent animate-pulse" />
+          {/* スワイプ方向インジケーター */}
+          <div className="absolute right-1 top-1/2 -translate-y-1/2 text-white/60 text-2xl animate-bounce">
+            ▶
+          </div>
+        </div>
+      </div>
+
       {/* ボタン - autoPlay時は非表示 */}
       {!autoPlay && (
         <>
