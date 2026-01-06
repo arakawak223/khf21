@@ -34,8 +34,7 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [nickname, setNickname] = useState('');
   const [selectedBGM, setSelectedBGM] = useState(BGM_OPTIONS[0].url);
-  const [isMultiplayer, setIsMultiplayer] = useState(true); // デフォルトでマルチプレイヤー
-  const [includeFreeman, setIncludeFreeman] = useState(true); // デフォルトでフリーマンあり
+  const [gameMode, setGameMode] = useState<'single' | 'online'>('single'); // シングル=AI対戦、オンライン=人間対戦
 
   const handleGuideOpen = () => {
     window.open('/card-guide', '_blank');
@@ -57,14 +56,10 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
 
   const handleStart = () => {
     console.log('=== handleStart called ===');
+    console.log('gameMode:', gameMode);
     console.log('selectedAirportId:', selectedAirportId);
     console.log('selectedDestinationData:', selectedDestinationData);
     console.log('selectedBGM:', selectedBGM);
-
-    if (!selectedAirportId || !selectedDestinationData) {
-      console.error('Cannot start: missing airportId or destinationData');
-      return;
-    }
 
     // 選択されたBGMを保存
     try {
@@ -75,15 +70,27 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
       console.error('Error saving BGM:', error);
     }
 
-    console.log('Calling onStart...');
-    onStart(
-      selectedDestinationData.count,
-      selectedDestinationData.label,
-      selectedAirportId,
-      nickname.trim() || undefined,
-      isMultiplayer,
-      includeFreeman
-    );
+    if (gameMode === 'online') {
+      // オンラインマルチプレイヤーの場合
+      console.log('Starting online multiplayer...');
+      onStart(0, '', '', nickname.trim() || undefined, true, false, true);
+    } else {
+      // シングルプレイ（AI対戦）の場合
+      if (!selectedAirportId || !selectedDestinationData) {
+        console.error('Cannot start: missing airportId or destinationData');
+        return;
+      }
+      console.log('Starting single player (AI battle)...');
+      onStart(
+        selectedDestinationData.count,
+        selectedDestinationData.label,
+        selectedAirportId,
+        nickname.trim() || undefined,
+        true, // isMultiplayer = true (AI対戦)
+        true, // includeFreeman = true (Dフリーマンと対戦)
+        false // isOnlineMultiplayer = false
+      );
+    }
   };
 
   return (
@@ -115,126 +122,59 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
             </Label>
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => setIsMultiplayer(false)}
+                onClick={() => setGameMode('single')}
                 className={`
                   touch-target p-4 rounded-lg border-2 transition-all
                   ${
-                    !isMultiplayer
-                      ? 'border-green-500 bg-green-50 dark:bg-green-900'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-green-300'
+                    gameMode === 'single'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
                   }
                 `}
               >
                 <div className="text-center">
-                  <p className="text-2xl mb-1">👤</p>
+                  <p className="text-2xl mb-1">🤖</p>
                   <p className="font-bold text-gray-800 dark:text-gray-200">
-                    シングル
+                    シングルプレイ
                   </p>
                   <p className="text-xs text-gray-600 dark:text-gray-400">
-                    1人プレイ
+                    AI対戦
                   </p>
                 </div>
               </button>
               <button
-                onClick={() => setIsMultiplayer(true)}
+                onClick={() => setGameMode('online')}
                 className={`
                   touch-target p-4 rounded-lg border-2 transition-all
                   ${
-                    isMultiplayer
-                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-900'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-orange-300'
+                    gameMode === 'online'
+                      ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900 dark:to-pink-900'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-purple-300'
                   }
                 `}
               >
                 <div className="text-center">
-                  <p className="text-2xl mb-1">👥</p>
+                  <p className="text-2xl mb-1">🌐</p>
                   <p className="font-bold text-gray-800 dark:text-gray-200">
-                    マルチ
+                    マルチプレイ
                   </p>
                   <p className="text-xs text-gray-600 dark:text-gray-400">
-                    対戦プレイ
+                    オンライン対戦
                   </p>
                 </div>
               </button>
             </div>
-          </div>
-
-          {/* フリーマン設定（マルチプレイヤー時のみ） */}
-          {isMultiplayer && (
-            <div>
-              <Label className="text-base font-semibold mb-3 block">
-                🤖 対戦相手
-              </Label>
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  onClick={() => setIncludeFreeman(false)}
-                  className={`
-                    touch-target p-4 rounded-lg border-2 transition-all
-                    ${
-                      !includeFreeman
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
-                    }
-                  `}
-                >
-                  <div className="text-center">
-                    <p className="text-2xl mb-1">👤</p>
-                    <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
-                      人間のみ
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      AI なし
-                    </p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setIncludeFreeman(true)}
-                  className={`
-                    touch-target p-4 rounded-lg border-2 transition-all
-                    ${
-                      includeFreeman
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-red-300'
-                    }
-                  `}
-                >
-                  <div className="text-center">
-                    <p className="text-2xl mb-1">🤖</p>
-                    <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
-                      Dフリーマン
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      AI対戦
-                    </p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    // オンライン対戦を選択
-                    onStart(0, '', '', '', true, false, true);
-                  }}
-                  className="touch-target p-4 rounded-lg border-2 border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900 dark:to-pink-900 hover:border-purple-600 transition-all"
-                >
-                  <div className="text-center">
-                    <p className="text-2xl mb-1">🌐</p>
-                    <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
-                      オンライン
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      人間対戦
-                    </p>
-                  </div>
-                </button>
-              </div>
-              <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                <p className="text-xs text-amber-800 dark:text-amber-200">
-                  <span className="font-bold">💡 ヒント</span><br />
-                  ・Dフリーマン: 追い越すとペナルティ、追い越されるとSフリーマン（サポート型）に変化<br />
-                  ・オンライン: 他の人間プレイヤーとリアルタイムで対戦！
-                </p>
-              </div>
+            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <p className="text-xs text-blue-800 dark:text-blue-200">
+                <span className="font-bold">💡 モード説明</span><br />
+                {gameMode === 'single' ? (
+                  <>・Dフリーマン（AI）との対戦<br />・追い越すとペナルティ、追い越されるとSフリーマン（サポート型）に変化</>
+                ) : (
+                  <>・他の人間プレイヤーとリアルタイムで対戦<br />・ルームコードで友達を招待できます</>
+                )}
+              </p>
             </div>
-          )}
+          </div>
 
           {/* ニックネーム入力 */}
           <div>
@@ -254,149 +194,162 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
             </p>
           </div>
 
-          {/* BGM選択 */}
-          <div>
-            <Label className="text-base font-semibold mb-3 block">
-              🎵 ゲーム中のBGMを選択
-            </Label>
-            <div className="grid grid-cols-1 gap-3">
-              {BGM_OPTIONS.map((bgm) => (
-                <button
-                  key={bgm.url}
-                  onClick={() => setSelectedBGM(bgm.url)}
-                  className={`
-                    touch-target p-4 rounded-lg border-2 transition-all text-left
-                    ${
-                      selectedBGM === bgm.url
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-purple-300'
-                    }
-                  `}
-                >
-                  <p className="font-bold text-gray-800 dark:text-gray-200">
-                    {bgm.name}
-                  </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    {bgm.description}
-                  </p>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              各シーンに応じて自動的にBGMが切り替わります
-            </p>
-          </div>
-
-          {/* 目的地数選択 */}
-          <div>
-            <Label className="text-base font-semibold mb-3 block">
-              訪問する目的地の数を選択
-            </Label>
-            <div className="grid grid-cols-2 gap-3">
-              {DESTINATION_COUNTS.map((destination) => (
-                <button
-                  key={destination.value}
-                  onClick={() => setSelectedDestinationCount(destination.value)}
-                  className={`
-                    touch-target p-4 rounded-lg border-2 transition-all
-                    ${
-                      selectedDestinationCount === destination.value
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
-                    }
-                  `}
-                >
-                  <div className="text-center">
-                    <p className="font-bold text-gray-800 dark:text-gray-200">
-                      {destination.label}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      ({destination.count}箇所訪問)
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 出発空港選択 */}
-          <div>
-            <Label className="text-base font-semibold mb-3 block">
-              出発地を選択
-              {airports.length === 0 && (
-                <span className="ml-2 text-sm font-normal text-orange-600">
-                  (データ読み込み中...)
-                </span>
-              )}
-            </Label>
-
-            {/* 検索ボックス */}
-            <input
-              type="text"
-              placeholder="空港名、都市名、国名で検索..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg mb-3 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
-              disabled={airports.length === 0}
-            />
-
-            {/* 空港リスト */}
-            <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg">
-              {airports.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  空港データを読み込み中...
+          {/* シングルプレイのみ表示する設定 */}
+          {gameMode === 'single' && (
+            <>
+              {/* BGM選択 */}
+              <div>
+                <Label className="text-base font-semibold mb-3 block">
+                  🎵 ゲーム中のBGMを選択
+                </Label>
+                <div className="grid grid-cols-1 gap-3">
+                  {BGM_OPTIONS.map((bgm) => (
+                    <button
+                      key={bgm.url}
+                      onClick={() => setSelectedBGM(bgm.url)}
+                      className={`
+                        touch-target p-4 rounded-lg border-2 transition-all text-left
+                        ${
+                          selectedBGM === bgm.url
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-purple-300'
+                        }
+                      `}
+                    >
+                      <p className="font-bold text-gray-800 dark:text-gray-200">
+                        {bgm.name}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {bgm.description}
+                      </p>
+                    </button>
+                  ))}
                 </div>
-              ) : filteredAirports.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  検索結果が見つかりません
-                </div>
-              ) : (
-                filteredAirports.map((airport) => (
-                  <button
-                    key={airport.id}
-                    onClick={() => setSelectedAirportId(airport.id)}
-                    className={`
-                      w-full p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
-                      ${
-                        selectedAirportId === airport.id
-                          ? 'bg-blue-50 dark:bg-blue-900 border-l-4 border-blue-500'
-                          : ''
-                      }
-                    `}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold text-gray-800 dark:text-gray-200">
-                          {airport.name_ja || airport.name}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  各シーンに応じて自動的にBGMが切り替わります
+                </p>
+              </div>
+
+              {/* 目的地数選択 */}
+              <div>
+                <Label className="text-base font-semibold mb-3 block">
+                  訪問する目的地の数を選択
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {DESTINATION_COUNTS.map((destination) => (
+                    <button
+                      key={destination.value}
+                      onClick={() => setSelectedDestinationCount(destination.value)}
+                      className={`
+                        touch-target p-4 rounded-lg border-2 transition-all
+                        ${
+                          selectedDestinationCount === destination.value
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
+                        }
+                      `}
+                    >
+                      <div className="text-center">
+                        <p className="font-bold text-gray-800 dark:text-gray-200">
+                          {destination.label}
                         </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {airport.city}, {airport.country}
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          ({destination.count}箇所訪問)
                         </p>
                       </div>
-                      <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
-                        {airport.code}
-                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 出発空港選択 */}
+              <div>
+                <Label className="text-base font-semibold mb-3 block">
+                  出発地を選択
+                  {airports.length === 0 && (
+                    <span className="ml-2 text-sm font-normal text-orange-600">
+                      (データ読み込み中...)
+                    </span>
+                  )}
+                </Label>
+
+                {/* 検索ボックス */}
+                <input
+                  type="text"
+                  placeholder="空港名、都市名、国名で検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg mb-3 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+                  disabled={airports.length === 0}
+                />
+
+                {/* 空港リスト */}
+                <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg">
+                  {airports.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                      空港データを読み込み中...
                     </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+                  ) : filteredAirports.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                      検索結果が見つかりません
+                    </div>
+                  ) : (
+                    filteredAirports.map((airport) => (
+                      <button
+                        key={airport.id}
+                        onClick={() => setSelectedAirportId(airport.id)}
+                        className={`
+                          w-full p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
+                          ${
+                            selectedAirportId === airport.id
+                              ? 'bg-blue-50 dark:bg-blue-900 border-l-4 border-blue-500'
+                              : ''
+                          }
+                        `}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold text-gray-800 dark:text-gray-200">
+                              {airport.name_ja || airport.name}
+                            </p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {airport.city}, {airport.country}
+                            </p>
+                          </div>
+                          <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                            {airport.code}
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* 開始ボタン */}
           <Button
             onClick={handleStart}
-            disabled={!selectedAirportId}
+            disabled={gameMode === 'single' && !selectedAirportId}
             size="lg"
             className="touch-target text-xl font-bold py-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
           >
-            旅を始める
+            {gameMode === 'online' ? 'オンライン対戦を始める' : '旅を始める'}
           </Button>
 
-          {selectedDestinationData && selectedAirportId && (
+          {gameMode === 'single' && selectedDestinationData && selectedAirportId && (
             <div className="text-center text-sm text-gray-600 dark:text-gray-400 animate-fade-in">
               <p>
                 {selectedDestinationData.label}を訪問する旅に出発します
+              </p>
+            </div>
+          )}
+
+          {gameMode === 'online' && (
+            <div className="text-center text-sm text-gray-600 dark:text-gray-400 animate-fade-in">
+              <p>
+                ルームを作成して友達を招待するか、既存のルームに参加できます
               </p>
             </div>
           )}
