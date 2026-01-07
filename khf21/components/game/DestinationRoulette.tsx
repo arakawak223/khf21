@@ -159,7 +159,7 @@ export default function DestinationRoulette({
                   {/* 都市名 */}
                   <div>
                     <h3
-                      className={`text-5xl font-bold mb-3 ${
+                      className={`text-3xl sm:text-5xl font-bold mb-3 break-words px-2 ${
                         selectedAirport
                           ? 'text-green-400 neon-text'
                           : 'text-white'
@@ -168,11 +168,13 @@ export default function DestinationRoulette({
                         textShadow: selectedAirport
                           ? '0 0 20px rgba(74, 222, 128, 0.8)'
                           : '0 4px 8px rgba(0, 0, 0, 0.5)',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'break-word',
                       }}
                     >
                       {currentAirport.city}
                     </h3>
-                    <p className="text-xl text-gray-300 mb-2">
+                    <p className="text-lg sm:text-xl text-gray-300 mb-2 break-words px-2">
                       {currentAirport.name_ja || currentAirport.name}
                     </p>
                     <div className="flex justify-center items-center gap-3 text-sm">

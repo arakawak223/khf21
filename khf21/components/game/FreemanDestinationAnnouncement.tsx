@@ -62,18 +62,18 @@ export default function FreemanDestinationAnnouncement({
             <div className="space-y-3">
               {/* 国旗・国名 */}
               {destination.country && (
-                <div className="text-2xl font-bold text-gray-700">
+                <div className="text-xl sm:text-2xl font-bold text-gray-700 break-words">
                   {destination.country}
                 </div>
               )}
 
               {/* 都市名 */}
-              <div className="text-5xl font-bold text-orange-600">
+              <div className="text-3xl sm:text-5xl font-bold text-orange-600 break-words px-2" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                 {destination.city || destination.name}
               </div>
 
               {/* 空港名 */}
-              <div className="text-lg text-gray-600">
+              <div className="text-base sm:text-lg text-gray-600 break-words px-2">
                 {destination.name_ja || destination.name}
               </div>
             </div>

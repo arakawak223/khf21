@@ -39,10 +39,10 @@ export default function DestinationIntro({
               🎯 目的地{destinationNumber}
             </div>
             <div className="text-6xl mb-2">✈️</div>
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200 break-words px-2">
               {airport.city}
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400">
+            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 break-words px-2">
               {airport.name_ja || airport.name}
             </p>
             <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">

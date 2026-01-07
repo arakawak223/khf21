@@ -1953,11 +1953,11 @@ function GameContent() {
                         {player.visit_history.map((visit, idx) => (
                           <div
                             key={idx}
-                            className="flex items-center gap-2 px-3 py-2 bg-white/70 rounded-lg"
+                            className="flex items-center gap-2 px-3 py-2 bg-white/70 rounded-lg max-w-full"
                           >
-                            <span className="font-bold text-blue-600 text-sm">目的地{visit.destinationNumber}</span>
-                            <span className="text-gray-700 text-sm">{visit.city}</span>
-                            <span className="font-bold text-green-600 text-sm">+{visit.pointsEarned}pt</span>
+                            <span className="font-bold text-blue-600 text-sm whitespace-nowrap">目的地{visit.destinationNumber}</span>
+                            <span className="text-gray-700 text-sm break-words">{visit.city}</span>
+                            <span className="font-bold text-green-600 text-sm whitespace-nowrap">+{visit.pointsEarned}pt</span>
                           </div>
                         ))}
                       </div>
