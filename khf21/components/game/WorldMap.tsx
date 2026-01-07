@@ -549,7 +549,7 @@ export default function WorldMap({
                       </div>
                       {player.current_space_number > 0 ? (
                         <div className="text-xs text-gray-600">
-                          移動中 (マス {player.current_space_number})
+                          移動中 ({player.current_space_number}/{player.route_spaces?.length || 0}マス)
                         </div>
                       ) : (
                         <div className="text-xs text-gray-600">

@@ -91,10 +91,12 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
       destinationName = nearestAirport ? (nearestAirport.city || nearestAirport.name) : '不明';
     }
 
-    // 進捗状況（現在地）
-    const currentSpace = player.current_space_number;
-    const totalSpaces = player.route_spaces.length;
-    const progress = `${currentSpace}/${totalSpaces}マス`;
+    // 進捗状況（現在地からの進捗）
+    // current_space_number: 0から始まり、現在進んだマス数
+    // route_spaces.length: 現在地から目的地までの総マス数
+    const progressedSpaces = player.current_space_number; // 進んだマス数
+    const totalSpaces = player.route_spaces.length; // 目的地までの総マス数
+    const progress = `${progressedSpaces}/${totalSpaces}マス`;
 
     return {
       departure: departureName,

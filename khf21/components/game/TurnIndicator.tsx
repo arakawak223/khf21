@@ -100,11 +100,11 @@ export function TurnIndicator({ currentTurnPlayer, isHumanTurn }: TurnIndicatorP
           <span className="text-white text-sm font-semibold">
             {currentTurnPlayer.total_points}pt
           </span>
-          {currentTurnPlayer.current_space_number > 0 && (
+          {currentTurnPlayer.current_space_number > 0 && currentTurnPlayer.route_spaces && (
             <>
               <span className="text-white/70 text-xs">|</span>
               <span className="text-white text-xs">
-                マス {currentTurnPlayer.current_space_number}
+                {currentTurnPlayer.current_space_number}/{currentTurnPlayer.route_spaces.length}マス
               </span>
             </>
           )}
