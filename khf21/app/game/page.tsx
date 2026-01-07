@@ -421,15 +421,16 @@ function GameContent() {
     // 現在地を更新
     setCurrentAirport(destination);
 
-    // 訪問済み空港に追加
-    setVisitedAirportIds(prev => [...prev, destination.id]);
+    // 訪問済み空港に追加（新しい配列を作成）
+    const newVisitedIds = [...visitedAirportIds, destination.id];
+    setVisitedAirportIds(newVisitedIds);
 
     // 経過日数を加算（滞在日数のトラッキングは残す）
     updateElapsedDays(days);
 
     // 目的地数チェック（到着時に目的地数の上限に達している場合はゲーム終了）
-    // visitedAirportIdsには開始空港が含まれるため、-1して実際の訪問目的地数を計算
-    const visitedDestinationsCount = visitedAirportIds.length; // 現在の訪問済み数（開始空港含む）+ 今回到着した空港 = length + 1 - 1
+    // newVisitedIdsには開始空港が含まれるため、-1して実際の訪問目的地数を計算
+    const visitedDestinationsCount = newVisitedIds.length - 1;
     console.log(`目的地チェック: ${visitedDestinationsCount}箇所 / ${maxDestinations}箇所`);
 
     if (visitedDestinationsCount >= maxDestinations) {
