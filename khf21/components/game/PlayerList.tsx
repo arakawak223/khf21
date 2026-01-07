@@ -109,8 +109,16 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
     const routeInfo = getRouteInfo(player);
 
     if (!routeInfo) {
+      // ルート情報がない場合（目的地選択前または到着後）
+      if (player.current_airport_id) {
+        // 現在の空港を取得
+        const currentAirport = airports.find(a => a.id === player.current_airport_id);
+        if (currentAirport) {
+          return `${currentAirport.city || currentAirport.name} にて待機`;
+        }
+      }
       if (player.current_location_type === 'airport') {
-        return '空港';
+        return '空港にて待機';
       }
       return '-';
     }
