@@ -163,8 +163,11 @@ export function calculateArrivalBonus(
   const lateArrivalBonus = 30; // 遅れて到着したボーナス（調整済み）
   const tollFee = occupation.tollFee; // 通行料
 
+  // 通行料を引いても、最低0ポイントは保証する
+  const finalBonus = Math.max(0, baseBonus + lateArrivalBonus - tollFee);
+
   return {
-    bonus: baseBonus + lateArrivalBonus - tollFee,
+    bonus: finalBonus,
     rank: 2,
     isFirstArrival: false,
     tollFee,

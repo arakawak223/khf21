@@ -52,18 +52,7 @@ export default function GourmetEvent({
           <p className="text-xs text-gray-700 dark:text-gray-300">
             この土地ならではの味わいに舌鼓を打ちました。食材の新鮮さ、調理の技術、
             そして料理に込められた情熱が一口ごとに伝わってきます。
-            地元の人々が愛する理由がよくわかりました。
-          </p>
-        </div>
-
-        {/* 感動体験メッセージ */}
-        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
-          <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
-            ✨ 感動体験
-          </p>
-          <p className="text-xs text-gray-700 dark:text-gray-300">
             食を通じてその土地の文化と歴史を感じることができました。
-            美味しい料理は人々を笑顔にし、心を豊かにする力があります。
             この味は一生忘れられない思い出となりました。
           </p>
         </div>

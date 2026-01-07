@@ -72,15 +72,6 @@ export default function GameProgress({
           </div>
         </div>
 
-        {/* 残り目的地の警告 */}
-        {remainingDestinations <= 2 && remainingDestinations > 0 && currentDestinations > 0 && (
-          <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg text-center">
-            <p className="text-xs text-yellow-800 dark:text-yellow-200">
-              旅の終わりが近づいています（残り{remainingDestinations}箇所）
-            </p>
-          </div>
-        )}
-
         {/* 旅の始まり */}
         {currentDestinations === 0 && (
           <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg text-center">

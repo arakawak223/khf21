@@ -48,16 +48,16 @@ export default function AttractionEvent({
           </div>
         )}
 
-        {/* 感動体験メッセージ */}
+        {/* 体験メッセージ */}
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
           <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
-            ✨ 感動体験
+            ✨ 体験
           </p>
           <p className="text-xs text-gray-700 dark:text-gray-300 leading-snug">
             {attraction.category === 'world_heritage' &&
-              'この世界遺産の壮大さと歴史の重みに深く感動しました。何世紀も前の人々の知恵と技術に圧倒されます。'}
+              'この世界遺産の壮大さと歴史の重みを感じました。何世紀も前の人々の知恵と技術に圧倒されます。'}
             {attraction.category === 'scenic_spot' &&
-              'この絶景は言葉では表現できないほど美しく、心が洗われるようです。大自然の力強さと繊細さに感動を覚えます。'}
+              'この絶景は言葉では表現できないほど美しく、心が洗われるようです。大自然の力強さと繊細さを感じます。'}
             {attraction.category === 'landmark' &&
               'この場所には特別な雰囲気があり、その地の文化と歴史を肌で感じることができました。訪れることができて本当に良かったです。'}
           </p>

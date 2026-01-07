@@ -86,6 +86,7 @@ export interface GamePlayer {
   impressed_points: number;
   giver_points: number;
   total_points: number;
+  arrival_points?: number; // 到着ポイント（別途トラッキング）
 
   // 資源管理（ポイントベース）
   resource_points: number;

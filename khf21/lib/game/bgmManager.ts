@@ -9,7 +9,7 @@ import { BGM_URLS } from './constants';
 export type BGMScene =
   | 'title'           // タイトル/マップ画面
   | 'roulette'        // 目的地ルーレット
-  | 'dice_wait'       // サイコロ待機
+  | 'dice_wait'       // ルーレット待機
   | 'flying'          // 飛行中
   | 'attraction'      // 名所/星マス（明るく軽快）
   | 'calm'            // アート/グルメ/人マス（癒し）
@@ -52,7 +52,7 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
   },
   dice_wait: {
     scene: 'dice_wait',
-    name: 'サイコロ待機',
+    name: 'ルーレット待機',
     description: '期待感のあるメロディ',
     src: BGM_URLS.DICE_ROULETTE,
     volume: 0.5,
@@ -138,7 +138,7 @@ class BGMManager {
     this.toneGenerator = new ToneGenerator();
     this.diceSoundGenerator = new DiceSoundGenerator();
     this.loadSettings();
-    // 初期化時にサイコロ音の音量とミュート状態を設定
+    // 初期化時に移動音の音量とミュート状態を設定
     this.diceSoundGenerator.setVolumeAndMute(this.volume * 0.4, this.isMuted);
   }
 
@@ -383,7 +383,7 @@ class BGMManager {
       this.sfxAudio.volume = this.isMuted ? 0 : this.volume * 0.8;
     }
 
-    // サイコロ音も音量を更新
+    // 移動音も音量を更新
     this.diceSoundGenerator.setVolumeAndMute(this.volume * 0.4, this.isMuted);
   }
 
@@ -415,7 +415,7 @@ class BGMManager {
       this.sfxAudio.volume = this.isMuted ? 0 : this.volume * 0.8;
     }
 
-    // サイコロ音も音量を更新
+    // 移動音も音量を更新
     this.diceSoundGenerator.setVolumeAndMute(this.volume * 0.4, this.isMuted);
     console.log(`[BGMManager] DiceSoundGenerator updated - volume: ${this.volume * 0.4}, muted: ${this.isMuted}`);
 
@@ -438,7 +438,7 @@ class BGMManager {
   }
 
   /**
-   * サイコロ移動音を再生
+   * ルーレット移動音を再生
    */
   public async playDiceSteps(count: number): Promise<void> {
     // ミュート中は再生しない
@@ -571,7 +571,7 @@ export const EVENT_BGM_MAP: Record<string, BGMScene> = {
 export const SCREEN_BGM_MAP: Record<string, BGMScene | 'none'> = {
   map: 'title',                    // マップ画面
   destination_roulette: 'roulette', // 目的地ルーレット
-  movement_roulette: 'dice_wait',   // 移動ルーレット（サイコロ）
+  movement_roulette: 'dice_wait',   // 移動ルーレット
   movement: 'flying',               // 移動中（飛行中）
   arrival_selection: 'arrival',     // 目的地到着
   events: 'none',                   // イベント画面（EVENT_BGM_MAPで処理）

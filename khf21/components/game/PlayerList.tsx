@@ -204,23 +204,22 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
 
                 {/* 第3行：訪問履歴（経路とポイント履歴） */}
                 {player.visit_history && player.visit_history.length > 0 && (
-                  <div className="pl-8 text-[10px] text-gray-500">
-                    <div className="flex items-start gap-1">
-                      <span className="flex-shrink-0">📍</span>
-                      <div className="flex-grow min-w-0 truncate">
-                        {/* 出発地 */}
-                        <span className="text-gray-600">
-                          {airports.find(a => a.id === player.current_airport_id)?.city || '出発地'}
-                        </span>
-                        {/* 訪問履歴 */}
-                        {player.visit_history.map((visit, idx) => (
-                          <span key={idx}>
-                            <span className="text-gray-400"> → </span>
-                            <span className="text-gray-700 font-semibold">{visit.city}</span>
-                            <span className="text-blue-600">({visit.pointsEarned}pt)</span>
+                  <div className="pl-8 text-[10px]">
+                    <div className="space-y-0.5">
+                      <div className="text-gray-600 font-semibold mb-1">📍 訪問履歴</div>
+                      {player.visit_history.map((visit, idx) => (
+                        <div key={idx} className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <span className="text-blue-600 font-bold">
+                              目的地{visit.destinationNumber}:
+                            </span>
+                            <span className="text-gray-700">{visit.city}</span>
+                          </div>
+                          <span className="text-green-600 font-semibold">
+                            +{visit.pointsEarned}pt
                           </span>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

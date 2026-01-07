@@ -93,10 +93,10 @@ export default function TroubleEvent({
             </div>
           )}
 
-          {/* 感動体験メッセージ */}
+          {/* 体験メッセージ */}
           <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
             <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
-              ✨ 感動体験
+              ✨ 体験
             </p>
             <p className="text-xs text-gray-700 dark:text-gray-300">
               困難な状況の中で、見知らぬ人が助けてくれました。

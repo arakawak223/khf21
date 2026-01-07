@@ -286,7 +286,7 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
         <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-xl shadow-lg">
           <p className="text-lg font-semibold flex items-center gap-2">
             <span className="animate-spin">⚙️</span>
-            <span>フリーマンがサイコロを振っています...</span>
+            <span>フリーマンがルーレットを回しています...</span>
           </p>
         </div>
       )}

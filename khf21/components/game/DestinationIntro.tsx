@@ -65,7 +65,7 @@ export default function DestinationIntro({
           </div>
 
           {/* 旅の情報 */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
               <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                 距離
@@ -74,15 +74,6 @@ export default function DestinationIntro({
                 {distance.toLocaleString()}
               </p>
               <p className="text-xs text-gray-500">km</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                滞在日数
-              </p>
-              <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                {stayDays}
-              </p>
-              <p className="text-xs text-gray-500">日間</p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
               <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">

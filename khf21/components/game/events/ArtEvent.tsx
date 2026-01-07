@@ -69,21 +69,11 @@ export default function ArtEvent({ isOpen, onClose, art }: ArtEventProps) {
             {art.category === 'concert' &&
               '生の音楽の迫力と美しさに圧倒されました。会場全体が一体となって音楽に包まれる感覚は、録音では決して味わえない特別なものです。'}
             {art.category === 'musical' &&
-              '俳優たちの熱演と美しい歌声、壮大なセットに魅了されました。物語の世界に引き込まれ、笑いと涙の感動的な時間を過ごしました。'}
+              '俳優たちの熱演と美しい歌声、壮大なセットに魅了されました。物語の世界に引き込まれ、笑いと涙の特別な時間を過ごしました。'}
             {art.category === 'performance' &&
               'アーティストの卓越した技術と表現力に心を奪われました。想像を超えるパフォーマンスに、何度も鳥肌が立ちました。'}
             {art.category === 'street_art' &&
-              '路上で繰り広げられる芸術的なパフォーマンスに足を止めました。身近な場所で触れるアートの力に、改めて感動しました。'}
-          </p>
-        </div>
-
-        {/* 感動体験メッセージ */}
-        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
-          <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
-            ✨ 感動体験
-          </p>
-          <p className="text-xs text-gray-700 dark:text-gray-300">
-            この素晴らしいアート体験は、旅の最高の思い出の一つとなりました。芸術の持つ力を肌で感じ、心が豊かになる瞬間でした。
+              '路上で繰り広げられる芸術的なパフォーマンスに足を止めました。身近な場所で触れるアートの力を感じました。'}
           </p>
         </div>
 

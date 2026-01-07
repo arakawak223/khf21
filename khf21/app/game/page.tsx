@@ -18,8 +18,6 @@ import MissionPanel from '@/components/game/MissionPanel';
 import MultiplayerFlow from '@/components/game/multiplayer/MultiplayerFlow';
 import PointsDisplay from '@/components/game/PointsDisplay';
 import GameProgress from '@/components/game/GameProgress';
-import AudioControls from '@/components/game/AudioControls';
-import AudioInitializer from '@/components/game/AudioInitializer';
 import {
   AttractionEvent,
   StarEvent,
@@ -29,6 +27,8 @@ import {
   GiverEvent,
   EncouragementGratitudeEvent,
 } from '@/components/game/events';
+import ArrivalPointsBreakdown from '@/components/game/ArrivalPointsBreakdown';
+import FreemanDestinationAnnouncement from '@/components/game/FreemanDestinationAnnouncement';
 import { Button } from '@/components/ui/button';
 import {
   getAirports,
@@ -112,7 +112,6 @@ function GameContent() {
     arrivedPlayers: string[];
   }>>({});
   const [startingAirportId, setStartingAirportId] = useState<string | null>(null);
-  const [audioInitialized, setAudioInitialized] = useState(false);
   const [showGameMenu, setShowGameMenu] = useState(false);
   const [freemanActionMessage, setFreemanActionMessage] = useState<string>('');
   const [freemanRollingDice, setFreemanRollingDice] = useState(false);
@@ -127,6 +126,24 @@ function GameContent() {
 
   // 都市占有システム用
   const [cityOccupations, setCityOccupations] = useState<Map<string, CityOccupation>>(new Map());
+
+  // 到着ポイント内訳表示用
+  const [showArrivalBreakdown, setShowArrivalBreakdown] = useState(false);
+  const [arrivalBreakdown, setArrivalBreakdown] = useState<{
+    arrivalBonus: number;
+    isFirstArrival: boolean;
+    attractionPoints?: number;
+    artPoints?: number;
+    gourmetPoints?: number;
+    attractionName?: string;
+    artName?: string;
+    gourmetName?: string;
+  } | null>(null);
+
+  // フリーマン目的地発表用
+  const [showFreemanDestination, setShowFreemanDestination] = useState(false);
+  const [freemanSelectedDestination, setFreemanSelectedDestination] = useState<Airport | null>(null);
+  const [freemanName, setFreemanName] = useState<string>('');
 
   // 空港データ取得
   useEffect(() => {
@@ -309,6 +326,7 @@ function GameContent() {
         impressed_points: 0,
         giver_points: 0,
         total_points: 0,
+        arrival_points: 0, // 到着ポイント（別途トラッキング）
         resource_points: 1000, // 初期資源ポイント
         total_spent_points: 0,
         current_flight_class: 'economy',
@@ -343,6 +361,7 @@ function GameContent() {
           impressed_points: 0,
           giver_points: 0,
           total_points: 0,
+          arrival_points: 0, // 到着ポイント（別途トラッキング）
           resource_points: 1000,
           total_spent_points: 0,
           current_flight_class: 'economy',
@@ -722,6 +741,18 @@ function GameContent() {
           gourmet: randomGourmet?.name_ja || randomGourmet?.name,
         });
 
+        // 出発地の場合は到着選択画面をスキップ
+        if (visitedAirportIds.length <= 1) {
+          console.log('出発地のため到着選択画面をスキップ');
+          // 次の目的地選択に進む
+          if ((gameSession as any).is_multiplayer) {
+            await switchToNextTurn();
+          } else {
+            setScreenState('destination_roulette');
+          }
+          return;
+        }
+
         // 到着選択画面へ
         setScreenState('arrival_selection');
       } catch (err) {
@@ -936,6 +967,7 @@ function GameContent() {
               ? {
                   ...p,
                   impressed_points: Math.max(0, p.impressed_points + adjustedBonus),
+                  arrival_points: (p.arrival_points || 0) + adjustedBonus, // 到着ポイントを別途記録
                   total_points: Math.max(0, p.total_points + adjustedBonus),
                 }
               : p
@@ -969,7 +1001,30 @@ function GameContent() {
 
     setPendingEvents(allEvents);
     setCurrentEventIndex(0);
+
+    // イベント画面に遷移してから、ポイント内訳モーダルを表示
     setScreenState('events');
+
+    // ポイント内訳を設定
+    const breakdown = {
+      arrivalBonus: arrivalBonus || 0,
+      isFirstArrival: isFirstArrival,
+      attractionPoints: option.type === 'attraction' ? (option.data as Attraction).impressed_points : undefined,
+      artPoints: option.type === 'art' ? (option.data as Art).impressed_points : undefined,
+      gourmetPoints: option.type === 'gourmet' ? (option.data as Gourmet).impressed_points : undefined,
+      attractionName: option.type === 'attraction' ? (option.data as Attraction).name : undefined,
+      artName: option.type === 'art' ? (option.data as Art).name : undefined,
+      gourmetName: option.type === 'gourmet' ? (option.data as Gourmet).name : undefined,
+    };
+    console.log('到着ポイント内訳を設定:', breakdown);
+    console.log('イベント数:', allEvents.length);
+    setArrivalBreakdown(breakdown);
+
+    // 少し遅延してモーダルを表示（画面遷移が完了してから）
+    setTimeout(() => {
+      setShowArrivalBreakdown(true);
+      console.log('到着ポイント内訳モーダルを表示');
+    }, 100);
   };
 
   // イベント完了時
@@ -1048,9 +1103,11 @@ function GameContent() {
         const destination = destinationAirport;
         if (destination && currentAirport) {
           // 訪問履歴を記録
+          // 目的地番号: visitedAirportIds には開始空港が含まれるため、-1 して実際の目的地番号を取得
+          const currentDestinationNumber = visitedAirportIds.length - 1;
           const pointsEarned = latestPlayer.total_points - arrivalStartPoints;
           const visit = {
-            destinationNumber: destinationCount,
+            destinationNumber: currentDestinationNumber,
             airportId: destination.id,
             airportName: destination.name_ja || destination.name,
             city: destination.city,
@@ -1070,7 +1127,7 @@ function GameContent() {
             );
           });
 
-          console.log(`訪問履歴を記録: ${destination.city} (目的地${destinationCount}) - ${pointsEarned}pt獲得`);
+          console.log(`訪問履歴を記録: ${destination.city} (目的地${currentDestinationNumber}) - ${pointsEarned}pt獲得`);
 
           const distance = calculateDistance(currentAirport, destination);
           const days = calculateStayDays(distance);
@@ -1111,6 +1168,25 @@ function GameContent() {
   const handleGiverEventClose = (points: number) => {
     setSelectedGiverPoints(points);
     handleEventClose();
+  };
+
+  // 到着ポイント内訳表示から続ける
+  const handleArrivalBreakdownContinue = () => {
+    console.log('到着ポイント内訳「続ける」ボタンがクリックされました');
+    console.log('イベントを表示します。イベント数:', pendingEvents.length);
+    setShowArrivalBreakdown(false);
+    setArrivalBreakdown(null);
+    // screenState は既に 'events' なので変更不要
+    console.log('モーダルを閉じました。イベントが表示されます。');
+  };
+
+  // フリーマンの目的地発表から続ける
+  const handleFreemanDestinationContinue = async () => {
+    setShowFreemanDestination(false);
+    setFreemanSelectedDestination(null);
+    setFreemanName('');
+    // フリーマンのターンを継続（ルーレットを回す処理に戻る）
+    await continueFreemanTurn();
   };
 
   // ターン切り替え処理（シンプル版）
@@ -1188,22 +1264,22 @@ function GameContent() {
   const handleFreemanDiceComplete = async (diceResult: number) => {
     console.log(`========================================`);
     console.log(`🎲 handleFreemanDiceComplete 呼び出し`);
-    console.log(`サイコロの目: ${diceResult}`);
+    console.log(`ルーレットの結果: ${diceResult}`);
     console.log(`========================================`);
 
     // 二重実行防止
     if (freemanDiceProcessing) {
-      console.log('フリーマンAI: サイコロ処理中のため、二重実行をスキップ');
+      console.log('フリーマンAI: ルーレット処理中のため、二重実行をスキップ');
       return;
     }
 
-    console.log(`フリーマンAI: サイコロ完了 - ${diceResult}`);
+    console.log(`フリーマンAI: ルーレット完了 - ${diceResult}`);
     setFreemanDiceProcessing(true);
 
-    // 即座にサイコロ表示を停止
+    // 即座にルーレット表示を停止
     setFreemanRollingDice(false);
 
-    setFreemanActionMessage(`🎲 サイコロの目: ${diceResult}`);
+    setFreemanActionMessage(`🎲 ルーレットの結果: ${diceResult}`);
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // フリーマンプレイヤーを取得
@@ -1649,7 +1725,11 @@ function GameContent() {
         );
 
         console.log(`フリーマンAI: 共通目的地を選択 - ${destination.name}`);
-        setFreemanActionMessage(`🎯 目的地: ${destination.city}`);
+
+        // フリーマンの目的地選択を発表
+        setFreemanSelectedDestination(destination);
+        setFreemanName(freemanPlayer.player_nickname);
+        setShowFreemanDestination(true);
 
         // 共通目的地を設定
         setDestinationAirport(destination);
@@ -1683,16 +1763,30 @@ function GameContent() {
           });
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        // 発表画面が表示されるため、ここでは待機しない
+        // 発表画面から続けるハンドラーでルーレット処理を開始する
+        return; // 一旦ここで終了
       }
     }
 
-    // サイコロを振るアニメーションを開始
-    setFreemanActionMessage('🎲 サイコロを振ります...');
+    // 目的地が既に設定されている場合、またはフリーマンがルートを持っている場合はルーレットを回す
+    // ルーレットを回すアニメーションを開始
+    setFreemanActionMessage('🎲 ルーレットを回します...');
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // サイコロ表示
-    console.log('フリーマンAI: サイコロ表示開始');
+    // ルーレット表示
+    console.log('フリーマンAI: ルーレット表示開始');
+    setFreemanRollingDice(true);
+  };
+
+  // フリーマンのルーレットを回す処理（目的地発表後に呼ばれる）
+  const continueFreemanTurn = async () => {
+    // ルーレットを回すアニメーションを開始
+    setFreemanActionMessage('🎲 ルーレットを回します...');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // ルーレット表示
+    console.log('フリーマンAI: ルーレット表示開始');
     setFreemanRollingDice(true);
   };
 
@@ -1725,10 +1819,13 @@ function GameContent() {
     }
 
     // イベント画面の場合は、イベントタイプに応じたBGMを再生
-    if (screenState === 'events' && pendingEvents.length > 0) {
+    if (screenState === 'events' && pendingEvents.length > 0 && currentEventIndex < pendingEvents.length) {
       const currentEvent = pendingEvents[currentEventIndex];
-      const bgmType = EVENT_BGM_MAP[currentEvent.type] || 'calm';
-      playBGM(bgmType);
+      if (currentEvent) {
+        const bgmType = EVENT_BGM_MAP[currentEvent.type] || 'calm';
+        console.log(`[BGM] Playing event BGM: ${bgmType} for event type: ${currentEvent.type}`);
+        playBGM(bgmType);
+      }
     } else {
       // その他の画面状態に応じたBGMを再生
       const bgmType = SCREEN_BGM_MAP[screenState] || 'none';
@@ -1775,22 +1872,114 @@ function GameContent() {
   }
 
   if (gameState === 'completed') {
+    // プレイヤーを順位順にソート
+    const sortedPlayers = [...players].sort((a, b) => b.total_points - a.total_points);
+
     return (
-      <div className="mobile-container py-6">
+      <div className="mobile-container py-6 space-y-6">
+        {/* タイトル */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">旅が終了しました</h1>
-          <PointsDisplay
-            impressedPoints={gameSession.impressed_points}
-            giverPoints={gameSession.giver_points}
-            showDetails={true}
-          />
+          <h1 className="text-4xl font-bold mb-2">🎉 素敵な旅でした！ 🎉</h1>
+          <p className="text-lg text-gray-600">全{maxDestinations}箇所の目的地を巡りました</p>
+        </div>
+
+        {/* 最終順位 */}
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-center">最終順位</h2>
+
+          {sortedPlayers.map((player, index) => {
+            const rank = index + 1;
+            const rankBadge = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}位`;
+
+            return (
+              <div
+                key={player.id}
+                className={`
+                  p-6 rounded-xl shadow-lg border-4
+                  ${rank === 1 ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 border-yellow-400' :
+                    rank === 2 ? 'bg-gradient-to-br from-gray-100 to-gray-200 border-gray-400' :
+                    rank === 3 ? 'bg-gradient-to-br from-orange-100 to-orange-200 border-orange-400' :
+                    'bg-white border-gray-300'}
+                `}
+              >
+                <div className="space-y-4">
+                  {/* プレイヤー名と順位 */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-4xl">{rankBadge}</div>
+                      <div>
+                        <h3 className="text-2xl font-bold">{player.player_nickname}</h3>
+                        <p className="text-sm text-gray-600">
+                          {player.player_type === 'human' ? '人間プレイヤー' : 'AIプレイヤー（フリーマン）'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-blue-600">
+                        {player.total_points.toLocaleString()}
+                      </div>
+                      <div className="text-sm text-gray-600">総合ポイント</div>
+                    </div>
+                  </div>
+
+                  {/* ポイント内訳 */}
+                  <div className="grid grid-cols-3 gap-3 p-4 bg-white/50 rounded-lg">
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 mb-1">✈️ 到着</div>
+                      <div className="text-lg font-bold text-blue-600">
+                        {(player.arrival_points || 0).toLocaleString()}pt
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 mb-1">✨ 感動</div>
+                      <div className="text-lg font-bold text-purple-600">
+                        {Math.max(0, player.impressed_points - (player.arrival_points || 0)).toLocaleString()}pt
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 mb-1">🎁 喜び</div>
+                      <div className="text-lg font-bold text-green-600">
+                        {player.giver_points.toLocaleString()}pt
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 訪問履歴 */}
+                  {player.visit_history && player.visit_history.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-bold text-gray-700">📍 訪問した目的地</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {player.visit_history.map((visit, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 px-3 py-2 bg-white/70 rounded-lg"
+                          >
+                            <span className="font-bold text-blue-600 text-sm">目的地{visit.destinationNumber}</span>
+                            <span className="text-gray-700 text-sm">{visit.city}</span>
+                            <span className="font-bold text-green-600 text-sm">+{visit.pointsEarned}pt</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 新しい旅を始めるボタン */}
+        <div className="text-center pt-4">
           <Button
             onClick={() => {
               setGameState('setup');
               setGameSession(null);
               setCurrentAirport(null);
+              setPlayers([]);
+              setCurrentTurnPlayer(null);
+              setVisitedAirportIds([]);
             }}
-            className="mt-6"
+            className="text-xl font-bold py-6 px-8"
             size="lg"
           >
             新しい旅を始める
@@ -1805,9 +1994,6 @@ function GameContent() {
 
   return (
     <div className="game-screen safe-area h-screen overflow-hidden">
-      {/* オーディオ初期化プロンプト */}
-      {!audioInitialized && <AudioInitializer onInitialized={() => setAudioInitialized(true)} />}
-
       <ResizablePanels
         initialTopHeight={30}
         minTopHeight={20}
@@ -1821,8 +2007,8 @@ function GameContent() {
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <PointsDisplay
-                  impressedPoints={gameSession.impressed_points}
-                  giverPoints={gameSession.giver_points}
+                  impressedPoints={currentTurnPlayer?.impressed_points || gameSession.impressed_points}
+                  giverPoints={currentTurnPlayer?.giver_points || gameSession.giver_points}
                   compact={true}
                 />
               </div>
@@ -1841,7 +2027,6 @@ function GameContent() {
               destinationLabel={destinationLabel}
               currentLocation={currentAirport.name_ja || currentAirport.name}
             />
-            <AudioControls />
           </div>
         </div>
       </div>
@@ -1869,7 +2054,7 @@ function GameContent() {
       <div className="h-full overflow-y-auto p-2">
         <div className="mobile-container">
           <div className="flex flex-col gap-2">
-            {/* 世界地図 - 目的地選択中・到着選択中・イベント表示中・サイコロ表示中は非表示 */}
+            {/* 世界地図 - 目的地選択中・到着選択中・イベント表示中・ルーレット表示中は非表示 */}
             {screenState !== 'destination_roulette' && screenState !== 'arrival_selection' && screenState !== 'events' && screenState !== 'destination_intro' && screenState !== 'movement_roulette' && !freemanRollingDice && (
               <ResizableMapContainer initialHeight={400} minHeight={200} maxHeight={600}>
                 <WorldMap
@@ -1883,7 +2068,7 @@ function GameContent() {
                   players={players}
                   currentPlayer={currentTurnPlayer || undefined}
                   airports={airports}
-                  destinationNumber={destinationCount}
+                  destinationNumber={visitedAirportIds.length}
                 />
               </ResizableMapContainer>
             )}
@@ -1996,7 +2181,7 @@ function GameContent() {
                 <DestinationRoulette
                   availableAirports={availableAirports}
                   onDestinationSelected={handleDestinationSelected}
-                  destinationNumber={destinationCount + 1}
+                  destinationNumber={visitedAirportIds.length}
                 />
               );
             })()}
@@ -2019,11 +2204,11 @@ function GameContent() {
               </div>
             )}
 
-            {/* フリーマンのサイコロ */}
+            {/* フリーマンのルーレット */}
             {freemanRollingDice && currentTurnPlayer?.player_type !== 'human' && (
-              <div className="flex flex-col gap-3">
-                <div className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl shadow-lg text-center mb-4">
-                  <p className="text-lg font-bold">🤖 フリーマンがサイコロを振っています...</p>
+              <div className="flex flex-col gap-2">
+                <div className="bg-red-600 text-white px-3 py-1 rounded-lg text-center">
+                  <p className="text-xs font-semibold">🤖 ルーレット回転中...</p>
                 </div>
                 <Dice3D
                   key={`freeman-dice-${currentTurnPlayer?.id}-${Date.now()}`}
@@ -2046,7 +2231,7 @@ function GameContent() {
           airport={destinationAirport}
           distance={travelDistance}
           stayDays={stayDays}
-          destinationNumber={destinationCount}
+          destinationNumber={visitedAirportIds.length}
           onContinue={handleDepartToDestination}
         />
       )}
@@ -2059,7 +2244,7 @@ function GameContent() {
           attraction={arrivalAttraction}
           art={arrivalArt}
           gourmet={arrivalGourmet}
-          destinationNumber={destinationCount}
+          destinationNumber={visitedAirportIds.length}
           onSelect={handleArrivalSelection}
           selectedAttractionId={destinationSelections[destinationAirport.id]?.selectedAttraction}
           selectedArtId={destinationSelections[destinationAirport.id]?.selectedArt}
@@ -2204,6 +2389,25 @@ function GameContent() {
       {/* ミッション表示 */}
       {currentTurnPlayer && currentTurnPlayer.missions && (
         <MissionPanel playerMissions={currentTurnPlayer.missions} />
+      )}
+
+      {/* 到着ポイント内訳表示 */}
+      {showArrivalBreakdown && arrivalBreakdown && (
+        <ArrivalPointsBreakdown
+          destinationName={destinationAirport?.city || destinationAirport?.name || '目的地'}
+          destinationNumber={visitedAirportIds.length}
+          breakdown={arrivalBreakdown}
+          onContinue={handleArrivalBreakdownContinue}
+        />
+      )}
+
+      {/* フリーマン目的地発表 */}
+      {showFreemanDestination && freemanSelectedDestination && (
+        <FreemanDestinationAnnouncement
+          destination={freemanSelectedDestination}
+          freemanName={freemanName}
+          onContinue={handleFreemanDestinationContinue}
+        />
       )}
     </div>
   );

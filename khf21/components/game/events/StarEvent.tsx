@@ -102,16 +102,16 @@ export default function StarEvent({
           </div>
         )}
 
-        {/* 感動体験メッセージ */}
+        {/* 体験メッセージ */}
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
           <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
-            ✨ 感動体験
+            ✨ 体験
           </p>
           <p className="text-xs text-gray-700 dark:text-gray-300">
             {star.category === 'musician' &&
               '生で聴いたことのあるあの歌声の持ち主に会えるなんて、夢のようです。音楽への情熱を直接感じることができて、心が震えました。'}
             {star.category === 'artist' &&
-              '作品を通じて感じていた世界観を、本人から直接聞くことができました。アートへの深い愛情と哲学に感動しました。'}
+              '作品を通じて感じていた世界観を、本人から直接聞くことができました。アートへの深い愛情と哲学を感じました。'}
             {star.category === 'movie_star' &&
               'スクリーン越しに見ていた憧れのスターに会えるなんて！その輝きと優しさに、改めて魅了されました。'}
             {star.category === 'athlete' &&

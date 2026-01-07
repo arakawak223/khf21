@@ -164,9 +164,12 @@ export function generateDestinationCandidates(
   // バランスよく選ぶ: 近距離1, 中距離1, 遠距離1
   airportsWithDistance.sort((a, b) => a.distance - b.distance);
 
-  const nearRange = airportsWithDistance.filter(a => a.distance < 3000);
-  const midRange = airportsWithDistance.filter(a => a.distance >= 3000 && a.distance < 8000);
-  const farRange = airportsWithDistance.filter(a => a.distance >= 8000);
+  // 近距離: 1500km以上5000km未満（短すぎる距離を避ける）
+  // 中距離: 5000km以上10000km未満
+  // 遠距離: 10000km以上
+  const nearRange = airportsWithDistance.filter(a => a.distance >= 1500 && a.distance < 5000);
+  const midRange = airportsWithDistance.filter(a => a.distance >= 5000 && a.distance < 10000);
+  const farRange = airportsWithDistance.filter(a => a.distance >= 10000);
 
   const selected: typeof airportsWithDistance = [];
 

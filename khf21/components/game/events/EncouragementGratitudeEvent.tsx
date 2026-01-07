@@ -176,7 +176,7 @@ export default function EncouragementGratitudeEvent({
                 <div className="flex justify-center gap-6">
                   {scenario.impressed_points > 0 && (
                     <div className="text-center">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">感動体験</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">体験ポイント</p>
                       <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                         +{scenario.impressed_points}
                       </p>
