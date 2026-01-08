@@ -7,9 +7,10 @@ interface Dice3DProps {
   onRollComplete: (result: number) => void;
   disabled?: boolean;
   autoPlay?: boolean; // 自動実行モード（フリーマン用）
+  maxNumber?: number; // 最大値（6 or 12）デフォルト6
 }
 
-export default function Dice3D({ onRollComplete, disabled = false, autoPlay = false }: Dice3DProps) {
+export default function Dice3D({ onRollComplete, disabled = false, autoPlay = false, maxNumber = 6 }: Dice3DProps) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [canStop, setCanStop] = useState(false);
   const [result, setResult] = useState<number | null>(null);
@@ -24,8 +25,8 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
   const autoPlayExecutedRef = useRef(false); // autoPlay実行済みフラグ
   const isSpinningRef = useRef(false); // isSpinningの同期的な追跡用
 
-  const numbers = [1, 2, 3, 4, 5, 6];
-  const anglePerNumber = 360 / 6; // 60度ずつ
+  const numbers = Array.from({ length: maxNumber }, (_, i) => i + 1); // 1からmaxNumberまで
+  const anglePerNumber = 360 / maxNumber; // 均等に配置
 
   const handleStart = (e?: React.MouseEvent) => {
     if (e) {
@@ -404,17 +405,21 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
             {/* 数字を円周上に配置 */}
             {numbers.map((num, index) => {
               const angle = index * anglePerNumber;
+              // 12個の数字の場合はサイズを小さく
+              const numberSize = maxNumber > 6 ? 45 : 60;
+              const numberRadius = maxNumber > 6 ? 110 : 105;
+              const fontSize = maxNumber > 6 ? 'text-2xl' : 'text-3xl';
               return (
                 <div key={num}>
                   {/* 数字 */}
                   <div
                     className="absolute top-1/2 left-1/2 origin-center"
                     style={{
-                      transform: `rotate(${angle}deg) translateY(-105px)`,
-                      width: '60px',
-                      height: '60px',
-                      marginLeft: '-30px',
-                      marginTop: '-30px',
+                      transform: `rotate(${angle}deg) translateY(-${numberRadius}px)`,
+                      width: `${numberSize}px`,
+                      height: `${numberSize}px`,
+                      marginLeft: `-${numberSize / 2}px`,
+                      marginTop: `-${numberSize / 2}px`,
                     }}
                   >
                     <div
@@ -426,13 +431,13 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
                           0 3px 6px rgba(0,0,0,0.3),
                           inset 0 1px 3px rgba(255,255,255,0.8),
                           inset 0 -1px 3px rgba(0,0,0,0.2),
-                          0 0 0 3px #ffd700,
-                          0 0 0 4px #d4af37
+                          0 0 0 ${maxNumber > 6 ? 2 : 3}px #ffd700,
+                          0 0 0 ${maxNumber > 6 ? 3 : 4}px #d4af37
                         `,
                       }}
                     >
                       <span
-                        className="text-3xl font-black"
+                        className={`${fontSize} font-black`}
                         style={{
                           background: 'linear-gradient(180deg, #1a1a1a 0%, #4a4a4a 100%)',
                           WebkitBackgroundClip: 'text',

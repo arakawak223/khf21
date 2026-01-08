@@ -189,9 +189,8 @@ export const GAME_PERIODS = [
   { value: '6months', label: '6か月', days: 180 },
 ] as const;
 
-// 目的地数設定（5パターン）
+// 目的地数設定（4パターン） - 5大陸制覇を目指す世界一周ゲーム
 export const DESTINATION_COUNTS = [
-  { value: '3destinations', label: '3箇所', count: 3 },
   { value: '5destinations', label: '5箇所', count: 5 },
   { value: '10destinations', label: '10箇所', count: 10 },
   { value: '20destinations', label: '20箇所', count: 20 },

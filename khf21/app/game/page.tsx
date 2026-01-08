@@ -116,6 +116,7 @@ function GameContent() {
   const [freemanActionMessage, setFreemanActionMessage] = useState<string>('');
   const [freemanRollingDice, setFreemanRollingDice] = useState(false);
   const [freemanDiceProcessing, setFreemanDiceProcessing] = useState(false);
+  const [selectedDiceType, setSelectedDiceType] = useState<6 | 12>(6); // ルーレットタイプ（6 or 12）
 
   // 訪問履歴記録用: 到着前のポイント
   const [arrivalStartPoints, setArrivalStartPoints] = useState<number>(0);
@@ -584,6 +585,9 @@ function GameContent() {
   // 移動ルーレット完了時（マス数を進める）
   const handleMovementRouletteComplete = async (result: number) => {
     console.log('Movement roulette result:', result, 'spaces');
+
+    // ルーレットタイプをリセット
+    setSelectedDiceType(6);
 
     // プレイヤー状態から情報を取得（プレイヤー状態が唯一の真実）
     if (!destinationAirport || !currentTurnPlayer?.route_spaces) {
@@ -2189,10 +2193,46 @@ function GameContent() {
 
             {screenState === 'movement_roulette' && currentTurnPlayer && (
               <div className="flex flex-col gap-3">
+                {/* 残りマスが13以上の場合、ルーレット選択UI表示 */}
+                {((currentTurnPlayer.route_spaces?.length || 0) - currentTurnPlayer.current_space_number) >= 13 && (
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-4 border-2 border-purple-300 dark:border-purple-700">
+                    <p className="text-sm font-bold text-purple-700 dark:text-purple-300 mb-3 text-center">
+                      ✨ ルーレット選択
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedDiceType(6)}
+                        className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all ${
+                          selectedDiceType === 6
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg scale-105'
+                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                        }`}
+                      >
+                        <div className="text-lg">🎲</div>
+                        <div className="text-xs">通常</div>
+                        <div className="text-sm">1～6</div>
+                      </button>
+                      <button
+                        onClick={() => setSelectedDiceType(12)}
+                        className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all ${
+                          selectedDiceType === 12
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
+                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                        }`}
+                      >
+                        <div className="text-lg">🎰</div>
+                        <div className="text-xs">中長距離</div>
+                        <div className="text-sm">1～12</div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <Dice3D
-                  key={`dice-${currentTurnPlayer.current_space_number}`}
+                  key={`dice-${currentTurnPlayer.current_space_number}-${selectedDiceType}`}
                   onRollComplete={handleMovementRouletteComplete}
                   disabled={false}
+                  maxNumber={selectedDiceType}
                 />
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-center">
                   <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mb-2">
@@ -2206,16 +2246,20 @@ function GameContent() {
             )}
 
             {/* フリーマンのルーレット */}
-            {freemanRollingDice && currentTurnPlayer?.player_type !== 'human' && (
+            {freemanRollingDice && currentTurnPlayer?.player_type !== 'human' && currentTurnPlayer && (
               <div className="flex flex-col gap-2">
                 <div className="bg-red-600 text-white px-3 py-1 rounded-lg text-center">
-                  <p className="text-xs font-semibold">🤖 ルーレット回転中...</p>
+                  <p className="text-xs font-semibold">
+                    🤖 ルーレット回転中...
+                    {((currentTurnPlayer.route_spaces?.length || 0) - currentTurnPlayer.current_space_number) >= 13 && ' (中長距離モード 1-12)'}
+                  </p>
                 </div>
                 <Dice3D
-                  key={`freeman-dice-${currentTurnPlayer?.id}-${Date.now()}`}
+                  key={`freeman-dice-${currentTurnPlayer.id}-${Date.now()}`}
                   onRollComplete={handleFreemanDiceComplete}
                   disabled={false}
                   autoPlay={true}
+                  maxNumber={((currentTurnPlayer.route_spaces?.length || 0) - currentTurnPlayer.current_space_number) >= 13 ? 12 : 6}
                 />
               </div>
             )}
@@ -2245,7 +2289,7 @@ function GameContent() {
           attraction={arrivalAttraction}
           art={arrivalArt}
           gourmet={arrivalGourmet}
-          destinationNumber={visitedAirportIds.length}
+          destinationNumber={visitedAirportIds.length - 1}
           onSelect={handleArrivalSelection}
           selectedAttractionId={destinationSelections[destinationAirport.id]?.selectedAttraction}
           selectedArtId={destinationSelections[destinationAirport.id]?.selectedArt}
@@ -2396,7 +2440,7 @@ function GameContent() {
       {showArrivalBreakdown && arrivalBreakdown && (
         <ArrivalPointsBreakdown
           destinationName={destinationAirport?.city || destinationAirport?.name || '目的地'}
-          destinationNumber={visitedAirportIds.length}
+          destinationNumber={visitedAirportIds.length - 1}
           breakdown={arrivalBreakdown}
           onContinue={handleArrivalBreakdownContinue}
         />

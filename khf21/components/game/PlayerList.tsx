@@ -215,19 +215,18 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
                 {/* 第3行：訪問履歴（経路とポイント履歴） */}
                 {player.visit_history && player.visit_history.length > 0 && (
                   <div className="pl-8 text-[10px]">
-                    <div className="space-y-0.5">
-                      <div className="text-gray-600 font-semibold mb-1">📍 訪問履歴</div>
+                    <div className="flex flex-wrap gap-1 items-center">
                       {player.visit_history.map((visit, idx) => (
-                        <div key={idx} className="flex items-center justify-between">
-                          <div className="flex items-center gap-1">
-                            <span className="text-blue-600 font-bold">
-                              目的地{visit.destinationNumber}:
-                            </span>
-                            <span className="text-gray-700">{visit.city}</span>
-                          </div>
-                          <span className="text-green-600 font-semibold">
-                            +{visit.pointsEarned}pt
+                        <div key={idx} className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                          <span className="text-blue-600 font-bold">
+                            目的地{visit.destinationNumber}
                           </span>
+                          <span className="text-green-600 font-semibold">
+                            {visit.pointsEarned}pt
+                          </span>
+                          {idx < player.visit_history.length - 1 && (
+                            <span className="text-gray-400 mx-0.5">|</span>
+                          )}
                         </div>
                       ))}
                     </div>
