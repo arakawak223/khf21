@@ -126,6 +126,13 @@ export function calculateRouteSpaces(
   const totalDistance = calculateDistance(from, to);
   const numSpaces = Math.ceil(totalDistance / spaceDistance);
 
+  console.log(`=== calculateRouteSpaces ===`);
+  console.log(`From: ${from.city} (${lat1}, ${lon1})`);
+  console.log(`To: ${to.city} (${lat2}, ${lon2})`);
+  console.log(`Total distance: ${totalDistance}km`);
+  console.log(`Space distance: ${spaceDistance}km`);
+  console.log(`Calculated spaces: ${numSpaces}`);
+
   const spaces: Array<{ lat: number; lng: number; spaceNumber: number }> = [];
 
   for (let i = 1; i <= numSpaces; i++) {
@@ -140,6 +147,9 @@ export function calculateRouteSpaces(
       spaceNumber: i,
     });
   }
+
+  console.log(`Generated ${spaces.length} route spaces`);
+  console.log(`=============================`);
 
   return spaces;
 }

@@ -16,6 +16,7 @@ interface ArrivalSelectionProps {
   art: Art | null;
   gourmet: Gourmet | null;
   destinationNumber: number; // 目的地の順番（1, 2, 3...）
+  playerName: string; // プレイヤー名
   onSelect: (option: SelectionOption) => void;
   selectedAttractionId?: string | null;
   selectedArtId?: string | null;
@@ -29,6 +30,7 @@ export default function ArrivalSelection({
   art,
   gourmet,
   destinationNumber,
+  playerName,
   onSelect,
   selectedAttractionId,
   selectedArtId,
@@ -129,7 +131,7 @@ export default function ArrivalSelection({
             </div>
             <div className="text-6xl animate-bounce">🎉</div>
             <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">
-              到着おめでとうございます！
+              {playerName} が到着！
             </h2>
             <p className="text-xl text-gray-700 dark:text-gray-300">
               {cityName}, {countryName}

@@ -746,18 +746,6 @@ function GameContent() {
           gourmet: randomGourmet?.name_ja || randomGourmet?.name,
         });
 
-        // 出発地の場合は到着選択画面をスキップ
-        if (visitedAirportIds.length <= 1) {
-          console.log('出発地のため到着選択画面をスキップ');
-          // 次の目的地選択に進む
-          if ((gameSession as any).is_multiplayer) {
-            await switchToNextTurn();
-          } else {
-            setScreenState('destination_roulette');
-          }
-          return;
-        }
-
         // 到着選択画面へ
         setScreenState('arrival_selection');
       } catch (err) {
@@ -1108,8 +1096,8 @@ function GameContent() {
         const destination = destinationAirport;
         if (destination && currentAirport) {
           // 訪問履歴を記録
-          // 目的地番号: visitedAirportIds には開始空港が含まれるため、-1 して実際の目的地番号を取得
-          const currentDestinationNumber = visitedAirportIds.length - 1;
+          // 目的地番号: 現在の訪問履歴の長さ + 1（次の目的地番号）
+          const currentDestinationNumber = (latestPlayer.visit_history?.length || 0) + 1;
           const pointsEarned = latestPlayer.total_points - arrivalStartPoints;
           const visit = {
             destinationNumber: currentDestinationNumber,
@@ -1470,23 +1458,23 @@ function GameContent() {
             if (selectedType === 'attraction') {
               selectedExperience = selectedAttraction;
               selectedId = selectedAttraction.id;
-              // フリーマンはイベントがないため、到着ポイントを1.5倍
-              points = Math.round(selectedAttraction.impressed_points * 1.5);
-              console.log(`フリーマンAI: 名所選択 - ${selectedAttraction.name_ja || selectedAttraction.name} (+${points}pt [1.5倍])`);
+              // フリーマンはイベントがないため、到着ポイントを倍増
+              points = Math.round(selectedAttraction.impressed_points * FREEMAN_POINT_MULTIPLIER);
+              console.log(`フリーマンAI: 名所選択 - ${selectedAttraction.name_ja || selectedAttraction.name} (+${points}pt [${FREEMAN_POINT_MULTIPLIER}倍])`);
               setFreemanActionMessage(`✨ ${selectedAttraction.name_ja || selectedAttraction.name} を体験 (+${points}pt)`);
             } else if (selectedType === 'art') {
               selectedExperience = selectedArt;
               selectedId = selectedArt.id;
-              // フリーマンはイベントがないため、到着ポイントを1.5倍
-              points = Math.round(selectedArt.impressed_points * 1.5);
-              console.log(`フリーマンAI: アート選択 - ${selectedArt.name_ja || selectedArt.name} (+${points}pt [1.5倍])`);
+              // フリーマンはイベントがないため、到着ポイントを倍増
+              points = Math.round(selectedArt.impressed_points * FREEMAN_POINT_MULTIPLIER);
+              console.log(`フリーマンAI: アート選択 - ${selectedArt.name_ja || selectedArt.name} (+${points}pt [${FREEMAN_POINT_MULTIPLIER}倍])`);
               setFreemanActionMessage(`🎨 ${selectedArt.name_ja || selectedArt.name} を鑑賞 (+${points}pt)`);
             } else {
               selectedExperience = selectedGourmet;
               selectedId = selectedGourmet.id;
-              // フリーマンはイベントがないため、到着ポイントを1.5倍
-              points = Math.round(selectedGourmet.impressed_points * 1.5);
-              console.log(`フリーマンAI: グルメ選択 - ${selectedGourmet.name_ja || selectedGourmet.name} (+${points}pt [1.5倍])`);
+              // フリーマンはイベントがないため、到着ポイントを倍増
+              points = Math.round(selectedGourmet.impressed_points * FREEMAN_POINT_MULTIPLIER);
+              console.log(`フリーマンAI: グルメ選択 - ${selectedGourmet.name_ja || selectedGourmet.name} (+${points}pt [${FREEMAN_POINT_MULTIPLIER}倍])`);
               setFreemanActionMessage(`🍴 ${selectedGourmet.name_ja || selectedGourmet.name} を堪能 (+${points}pt)`);
             }
 
@@ -1573,6 +1561,17 @@ function GameContent() {
             }
 
             // ポイント加算と到着処理: 現在地を更新、必要に応じて新しいルートを設定
+            // visit_historyを更新するための訪問記録を作成
+            const freemanDestinationNumber = (freemanPlayer.visit_history?.length || 0) + 1;
+            const freemanVisit = {
+              destinationNumber: freemanDestinationNumber,
+              airportId: arrivedAirport.id,
+              airportName: arrivedAirport.name_ja || arrivedAirport.name,
+              city: arrivedAirport.city,
+              pointsEarned: points,
+              visitedAt: new Date().toISOString(),
+            };
+
             setPlayers((prevPlayers) => {
               const finalPlayers = prevPlayers.map((p) =>
                 p.id === freemanPlayer.id
@@ -1583,6 +1582,7 @@ function GameContent() {
                       current_space_number: 0,
                       impressed_points: p.impressed_points + points,
                       total_points: p.total_points + points,
+                      visit_history: [...(p.visit_history || []), freemanVisit],
                     }
                   : p
               );
@@ -1595,7 +1595,34 @@ function GameContent() {
               return finalPlayers;
             });
 
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            console.log(`フリーマンAI訪問履歴を記録: ${arrivedAirport.city} (目的地${freemanDestinationNumber}) - ${points}pt獲得`);
+
+            // 到着ポイント内訳を設定して表示
+            // 注意: experiencePoints は既に調整後のポイント（points から arrivalBonus を引いた値）
+            const experiencePointsAdjusted = points - arrivalBonus;
+
+            const breakdown = {
+              arrivalBonus: arrivalBonus,
+              isFirstArrival: isFirstArrival,
+              attractionPoints: selectedType === 'attraction' ? experiencePointsAdjusted : undefined,
+              artPoints: selectedType === 'art' ? experiencePointsAdjusted : undefined,
+              gourmetPoints: selectedType === 'gourmet' ? experiencePointsAdjusted : undefined,
+              attractionName: selectedType === 'attraction' ? (selectedAttraction.name_ja || selectedAttraction.name) : undefined,
+              artName: selectedType === 'art' ? (selectedArt.name_ja || selectedArt.name) : undefined,
+              gourmetName: selectedType === 'gourmet' ? (selectedGourmet.name_ja || selectedGourmet.name) : undefined,
+            };
+
+            console.log('フリーマンAI: 到着ポイント内訳を設定:', breakdown);
+            setArrivalBreakdown(breakdown);
+
+            // 少し遅延してモーダルを表示
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            setShowArrivalBreakdown(true);
+            console.log('フリーマンAI: 到着ポイント内訳モーダルを表示');
+
+            // モーダルが閉じられるまで待機（ユーザーが「続ける」ボタンを押すまで）
+            // 注意: この待機は handleArrivalBreakdownContinue で showArrivalBreakdown が false になることで制御される
+            await new Promise((resolve) => setTimeout(resolve, 1000));
           } catch (err) {
             console.error('========================================');
             console.error('❌ フリーマンAI到着選択エラー:', err);
@@ -1818,6 +1845,13 @@ function GameContent() {
 
   // BGM管理 - 画面状態に応じてBGMを切り替え
   useEffect(() => {
+    // ゲーム終了時はエンディングBGMを再生
+    if (gameState === 'completed') {
+      console.log('[BGM] Playing ending BGM');
+      playBGM('ending');
+      return;
+    }
+
     if (gameState !== 'playing') {
       stopBGM();
       return;
@@ -2059,8 +2093,8 @@ function GameContent() {
       <div className="h-full overflow-y-auto p-2">
         <div className="mobile-container">
           <div className="flex flex-col gap-2">
-            {/* 世界地図 - 目的地選択中・到着選択中・イベント表示中・ルーレット表示中は非表示 */}
-            {screenState !== 'destination_roulette' && screenState !== 'arrival_selection' && screenState !== 'events' && screenState !== 'destination_intro' && screenState !== 'movement_roulette' && !freemanRollingDice && (
+            {/* 世界地図 - 目的地選択中・到着選択中・イベント表示中・ルーレット表示中・ポイント内訳表示中は非表示 */}
+            {screenState !== 'destination_roulette' && screenState !== 'arrival_selection' && screenState !== 'events' && screenState !== 'destination_intro' && screenState !== 'movement_roulette' && !freemanRollingDice && !showArrivalBreakdown && (
               <ResizableMapContainer initialHeight={400} minHeight={200} maxHeight={600}>
                 <WorldMap
                   currentAirport={currentAirport}
@@ -2085,8 +2119,29 @@ function GameContent() {
                 {currentTurnPlayer && currentTurnPlayer.player_type === 'human' && (
                   <>
                     {/* 目的地未設定または到達済みの場合のみボタンを表示 */}
-                    {(!destinationAirport ||
-                      currentTurnPlayer.current_space_number >= (currentTurnPlayer.route_spaces?.length || 0)) && (
+                    {/* ただし、到達済みの場合は先行到着者のみが次の目的地を選択可能 */}
+                    {(() => {
+                      // 目的地未設定の場合は常に選択可能
+                      if (!destinationAirport) {
+                        return true;
+                      }
+
+                      // 目的地到達済みの場合
+                      if (currentTurnPlayer.current_space_number >= (currentTurnPlayer.route_spaces?.length || 0)) {
+                        // 現在の目的地の選択状況を確認
+                        const currentDestSelections = destinationSelections[destinationAirport.id];
+                        if (!currentDestSelections || !currentDestSelections.arrivedPlayers) {
+                          // 選択状況がまだ記録されていない場合（到着処理前）は表示しない
+                          return false;
+                        }
+
+                        // 先行到着者（arrivedPlayersの最初）のみが次の目的地を選択可能
+                        const isFirstArrival = currentDestSelections.arrivedPlayers[0] === currentTurnPlayer.id;
+                        return isFirstArrival;
+                      }
+
+                      return false;
+                    })() && (
                       <>
                         <Button
                           onClick={handleStartDestinationSelection}
@@ -2125,7 +2180,7 @@ function GameContent() {
                             📍 移動中: {currentTurnPlayer.current_space_number} / {currentTurnPlayer.route_spaces?.length || 0} マス
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            目的地: {destinationAirport?.city || '不明'}
+                            目的地{(currentTurnPlayer.visit_history?.length || 0) + 1} {destinationAirport?.city || '不明'}
                           </p>
                         </div>
                       </>
@@ -2290,6 +2345,7 @@ function GameContent() {
           art={arrivalArt}
           gourmet={arrivalGourmet}
           destinationNumber={visitedAirportIds.length - 1}
+          playerName={currentTurnPlayer?.player_nickname || gameSession.player_nickname || 'プレイヤー'}
           onSelect={handleArrivalSelection}
           selectedAttractionId={destinationSelections[destinationAirport.id]?.selectedAttraction}
           selectedArtId={destinationSelections[destinationAirport.id]?.selectedArt}
@@ -2443,6 +2499,7 @@ function GameContent() {
           destinationNumber={visitedAirportIds.length - 1}
           breakdown={arrivalBreakdown}
           onContinue={handleArrivalBreakdownContinue}
+          playerName={currentTurnPlayer?.player_nickname || gameSession.player_nickname || 'プレイヤー'}
         />
       )}
 

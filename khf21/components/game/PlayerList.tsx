@@ -60,7 +60,7 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
     }
   };
 
-  const getRouteInfo = (player: GamePlayer): { departure: string; destination: string; progress: string } | null => {
+  const getRouteInfo = (player: GamePlayer): { departure: string; destination: string; progress: string; destinationNumber: number } | null => {
     // ルート情報がない場合
     if (!player.route_spaces || player.route_spaces.length === 0) {
       return null;
@@ -70,11 +70,9 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
     const departureAirport = airports.find(a => a.id === player.current_airport_id);
     const departureName = departureAirport ? (departureAirport.city || departureAirport.name) : '不明';
 
-    // 目的地を取得（共通の目的地または route_spaces の最終地点）
+    // 目的地を取得（各プレイヤーの route_spaces から判定）
     let destinationName = '不明';
-    if (destinationAirport) {
-      destinationName = destinationAirport.city || destinationAirport.name;
-    } else if (player.route_spaces.length > 0) {
+    if (player.route_spaces.length > 0) {
       // route_spaces の最終地点から最も近い空港を見つける
       const finalSpace = player.route_spaces[player.route_spaces.length - 1];
       const nearestAirport = airports.reduce((nearest, airport) => {
@@ -96,12 +94,23 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
     // route_spaces.length: 現在地から目的地までの総マス数
     const progressedSpaces = player.current_space_number; // 進んだマス数
     const totalSpaces = player.route_spaces.length; // 目的地までの総マス数
-    const progress = `${progressedSpaces}/${totalSpaces}マス`;
+    const progress = `${progressedSpaces}/${totalSpaces}`;
+
+    // 目的地番号を計算
+    let destinationNumber: number;
+    if (player.current_space_number >= player.route_spaces.length && player.visit_history && player.visit_history.length > 0) {
+      // 到着済みの場合：visit_history の最新エントリから取得
+      destinationNumber = player.visit_history[player.visit_history.length - 1].destinationNumber;
+    } else {
+      // 移動中または待機中の場合：次の目的地番号
+      destinationNumber = (player.visit_history?.length || 0) + 1;
+    }
 
     return {
       departure: departureName,
       destination: destinationName,
       progress,
+      destinationNumber,
     };
   };
 
@@ -125,7 +134,7 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
 
     // 移動中の場合
     if (player.current_space_number > 0 && player.current_space_number < (player.route_spaces?.length || 0)) {
-      return `${routeInfo.departure} ➔ ${routeInfo.destination} (${routeInfo.progress})`;
+      return `目的地${routeInfo.destinationNumber} ${routeInfo.destination}まで ${routeInfo.progress}`;
     }
 
     // 空港にいる場合
@@ -135,10 +144,10 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
 
     // 到着した場合
     if (player.current_space_number >= (player.route_spaces?.length || 0)) {
-      return `${routeInfo.destination} に到着`;
+      return `目的地${routeInfo.destinationNumber} ${routeInfo.destination} に到着`;
     }
 
-    return `${routeInfo.departure} ➔ ${routeInfo.destination}`;
+    return `目的地${routeInfo.destinationNumber} ${routeInfo.destination}`;
   };
 
   if (players.length === 0) {
@@ -216,7 +225,7 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
                 {player.visit_history && player.visit_history.length > 0 && (
                   <div className="pl-8 text-[10px]">
                     <div className="flex flex-wrap gap-1 items-center">
-                      {player.visit_history.map((visit, idx) => (
+                      {player.visit_history?.map((visit, idx) => (
                         <div key={idx} className="inline-flex items-center gap-0.5 whitespace-nowrap">
                           <span className="text-blue-600 font-bold">
                             目的地{visit.destinationNumber}
@@ -224,11 +233,36 @@ export function PlayerList({ players, currentTurnPlayer, airports, destinationAi
                           <span className="text-green-600 font-semibold">
                             {visit.pointsEarned}pt
                           </span>
-                          {idx < player.visit_history.length - 1 && (
+                          {idx < (player.visit_history?.length || 0) - 1 && (
                             <span className="text-gray-400 mx-0.5">|</span>
                           )}
                         </div>
                       ))}
+                      {/* イベントポイントの表示 */}
+                      {(() => {
+                        // 訪問履歴の合計ポイント
+                        const visitHistoryTotal = player.visit_history?.reduce((sum, visit) => sum + visit.pointsEarned, 0) || 0;
+                        // イベントポイント = 総ポイント - 訪問履歴合計
+                        const eventPoints = player.total_points - visitHistoryTotal;
+
+                        // イベントポイントが0でない場合のみ表示
+                        if (eventPoints !== 0) {
+                          return (
+                            <>
+                              <span className="text-gray-400 mx-0.5">|</span>
+                              <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                                <span className="text-purple-600 font-bold">
+                                  イベント
+                                </span>
+                                <span className={`font-semibold ${eventPoints > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {eventPoints > 0 ? '+' : ''}{eventPoints}pt
+                                </span>
+                              </div>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 )}

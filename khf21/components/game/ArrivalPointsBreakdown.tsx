@@ -24,6 +24,7 @@ interface ArrivalPointsBreakdownProps {
   destinationNumber: number;
   breakdown: PointBreakdown;
   onContinue: () => void;
+  playerName: string;
 }
 
 export default function ArrivalPointsBreakdown({
@@ -31,6 +32,7 @@ export default function ArrivalPointsBreakdown({
   destinationNumber,
   breakdown,
   onContinue,
+  playerName,
 }: ArrivalPointsBreakdownProps) {
   const totalPoints =
     breakdown.arrivalBonus +
@@ -39,7 +41,7 @@ export default function ArrivalPointsBreakdown({
     (breakdown.gourmetPoints || 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -50,7 +52,7 @@ export default function ArrivalPointsBreakdown({
           <div className="text-center space-y-2">
             <div className="text-6xl">🎊</div>
             <h2 className="text-3xl font-bold text-gray-800">
-              目的地{destinationNumber}に到着！
+              {playerName} が目的地{destinationNumber}に到着！
             </h2>
             <p className="text-xl text-gray-600">{destinationName}</p>
           </div>

@@ -58,6 +58,9 @@ export default function TroubleEvent({
 
   if (showResolution && resolution) {
     // トラブル解消画面
+    // 正味のポイント = トラブル損失 + 解決獲得
+    const netPoints = trouble.impressed_points_loss + resolution.impressed_points;
+
     return (
       <EventModal
         isOpen={isOpen}
@@ -65,7 +68,7 @@ export default function TroubleEvent({
         title="助けが来た！"
         subtitle={getHelperLabel(resolution.helper_type)}
         emoji="🦸"
-        points={{ impressed: resolution.impressed_points }}
+        points={{ impressed: netPoints }}
         closeButtonText="次へ"
       >
         <div className="space-y-2">
@@ -102,6 +105,27 @@ export default function TroubleEvent({
               困難な状況の中で、見知らぬ人が助けてくれました。
               人の優しさと温かさに触れ、心から感謝の気持ちでいっぱいです。
               この経験は、人と人との繋がりの大切さを改めて教えてくれました。
+              {netPoints < 0 && (
+                <span className="block mt-1 text-red-700 dark:text-red-300">
+                  ただし、トラブルによる損失は{Math.abs(trouble.impressed_points_loss)}ポイント、
+                  解決により{resolution.impressed_points}ポイント回復し、
+                  正味{Math.abs(netPoints)}ポイントの損失となりました。
+                </span>
+              )}
+              {netPoints > 0 && (
+                <span className="block mt-1 text-green-700 dark:text-green-300">
+                  トラブルは{Math.abs(trouble.impressed_points_loss)}ポイントの損失でしたが、
+                  解決により{resolution.impressed_points}ポイント獲得し、
+                  正味{netPoints}ポイントのプラスとなりました！
+                </span>
+              )}
+              {netPoints === 0 && (
+                <span className="block mt-1 text-gray-700 dark:text-gray-300">
+                  トラブルは{Math.abs(trouble.impressed_points_loss)}ポイントの損失でしたが、
+                  解決により{resolution.impressed_points}ポイント獲得し、
+                  プラスマイナスゼロとなりました。
+                </span>
+              )}
             </p>
           </div>
 

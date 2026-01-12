@@ -28,6 +28,43 @@ export interface BGMTrack {
   fadeOutDuration?: number;
 }
 
+// ファンファーレ音源リスト（到着時に使用）
+const FANFARE_TRACKS = [
+  '/audio/bgm/me/2049ers.mp3',
+  '/audio/bgm/me/ABSOLUTE_FUNNY_FIELD.mp3',
+  '/audio/bgm/me/After_All_Human.mp3',
+  '/audio/bgm/me/Fortune_Rush!.mp3',
+  '/audio/bgm/me/Rise_of_the_Fabulous_Duck.mp3',
+  '/audio/bgm/me/maou_game_town01.mp3',
+  '/audio/bgm/me/maou_game_town13.mp3',
+  '/audio/bgm/me/maou_game_town24.mp3',
+  '/audio/bgm/me/maou_game_village03b.mp3',
+  '/audio/bgm/me/maou_game_village04.mp3',
+  '/audio/bgm/me/maou_game_village10.mp3',
+  '/audio/bgm/me/あふぁめーしょん.mp3',
+  '/audio/bgm/me/どた☆ばたコミック！.mp3',
+  '/audio/bgm/me/にちようびの大冒険.mp3',
+  '/audio/bgm/me/ねこねこワンダーランド.mp3',
+  '/audio/bgm/me/みんなでジャンピング！.mp3',
+  '/audio/bgm/me/ハチャメチャ・トラブル.mp3',
+  '/audio/bgm/me/ハッピージェネレーション.mp3',
+  '/audio/bgm/me/峠を攻めろ！！.mp3',
+  '/audio/bgm/me/思いっきり遊んじゃおう！.mp3',
+  '/audio/bgm/me/恋はドキドキ、大騒ぎ！.mp3',
+  '/audio/bgm/me/遊園地ディキシー.mp3',
+  '/audio/bgm/me/青空、ソフトクリーム、旅の道。.mp3',
+  '/audio/bgm/me/青空に口笛.mp3',
+] as const;
+
+// エンディング音源リスト（ゲーム終了時に使用）
+const ENDING_TRACKS = [
+  '/audio/bgm/me/Loving_Highball.mp3',
+  '/audio/bgm/me/今日もお疲れ様でした.mp3',
+  '/audio/bgm/me/動物が森に集まりそうなやつ.mp3',
+  '/audio/bgm/me/忘れかけた記憶.mp3',
+  '/audio/bgm/me/爽やかな朝.mp3',
+] as const;
+
 // BGMトラック定義
 const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
   title: {
@@ -104,8 +141,8 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     scene: 'arrival',
     name: '到着',
     description: '達成感のあるメロディ',
-    src: BGM_URLS.BRIGHT,
-    volume: 0.7,
+    src: FANFARE_TRACKS, // ランダム選曲
+    volume: 1.0, // 音量を最大に
     loop: false,
     fadeInDuration: 500,
     fadeOutDuration: 1000,
@@ -114,8 +151,8 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     scene: 'ending',
     name: 'エンディング',
     description: '華やかなエンディング',
-    src: BGM_URLS.BRIGHT,
-    volume: 0.7,
+    src: ENDING_TRACKS, // ランダム選曲
+    volume: 1.0, // 音量を最大に
     loop: false,
     fadeInDuration: 1000,
     fadeOutDuration: 2000,
@@ -461,6 +498,13 @@ class BGMManager {
     console.log('[Fanfare] Playing fanfare from audio file');
 
     try {
+      // 既存のBGMを一時停止（ファンファーレが聞こえやすくする）
+      const previousVolume = this.currentAudio ? this.currentAudio.volume : 0;
+      if (this.currentAudio) {
+        console.log('[Fanfare] Lowering BGM volume for fanfare');
+        this.currentAudio.volume = previousVolume * 0.2; // BGMを20%に下げる
+      }
+
       // 既存の効果音を停止
       if (this.sfxAudio) {
         this.sfxAudio.pause();
@@ -468,35 +512,56 @@ class BGMManager {
         this.sfxAudio = null;
       }
 
+      // ファンファーレ音源をランダムに選択
+      const selectedTrack = FANFARE_TRACKS[Math.floor(Math.random() * FANFARE_TRACKS.length)];
+      console.log(`[Fanfare] Selected track: ${selectedTrack}`);
+
       // 効果音ファイルを再生
-      const fanfareAudio = new Audio('/audio/sfx/fanfare.mp3');
-      fanfareAudio.volume = this.isMuted ? 0 : this.volume * 0.8; // 効果音は少し控えめに
+      const fanfareAudio = new Audio(selectedTrack);
+      fanfareAudio.volume = this.isMuted ? 0 : Math.min(this.volume * 1.2, 1.0); // 音量を上げる（最大1.0）
       this.sfxAudio = fanfareAudio;
 
       // エラーハンドリング
       fanfareAudio.onerror = () => {
-        console.warn('Failed to load fanfare.mp3, using fallback tone');
+        console.warn(`Failed to load ${selectedTrack}, using fallback tone`);
         this.sfxAudio = null;
         this.playFanfareFallback();
       };
 
       await fanfareAudio.play();
 
-      // 効果音が終わるまで待つ（約3秒）
+      // 効果音が終わるまで待つ（最大30秒）
       await new Promise(resolve => {
         fanfareAudio.onended = () => {
           this.sfxAudio = null;
+          // BGMの音量を戻す
+          if (this.currentAudio && this.currentScene) {
+            const track = BGM_TRACKS[this.currentScene];
+            this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
+            console.log('[Fanfare] Restored BGM volume');
+          }
           resolve(undefined);
         };
-        // タイムアウトも設定（念のため）
+        // タイムアウトも設定（念のため、最大30秒）
         setTimeout(() => {
           this.sfxAudio = null;
+          // BGMの音量を戻す
+          if (this.currentAudio && this.currentScene) {
+            const track = BGM_TRACKS[this.currentScene];
+            this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
+            console.log('[Fanfare] Restored BGM volume (timeout)');
+          }
           resolve(undefined);
-        }, 5000);
+        }, 30000);
       });
     } catch (error) {
       console.warn('Failed to play fanfare, using fallback:', error);
       this.sfxAudio = null;
+      // エラー時もBGMの音量を戻す
+      if (this.currentAudio && this.currentScene) {
+        const track = BGM_TRACKS[this.currentScene];
+        this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
+      }
       this.playFanfareFallback();
     }
   }
