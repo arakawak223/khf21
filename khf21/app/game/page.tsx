@@ -53,6 +53,7 @@ import {
 } from '@/lib/game/movement';
 import { createClient } from '@/lib/supabase/client';
 import type { Airport, Attraction, Star, Art, Gourmet, Trouble, GiverScenario, EncouragementGratitudeScenario } from '@/types/database.types';
+import type { GamePlayer } from '@/types/multiplayer.types';
 import { TurnIndicator } from '@/components/game/TurnIndicator';
 import { PlayerList } from '@/components/game/PlayerList';
 import { FreemanAI } from '@/lib/game/freemanAI';
@@ -1389,10 +1390,11 @@ function GameContent() {
     setPlayers(result.updatedPlayers);
 
     // カードを使用済みにマーク
+    let updatedCurrentPlayer: GamePlayer | null = null;
     setPlayers((prevPlayers) => {
       return prevPlayers.map((p) => {
         if (p.id === currentTurnPlayer.id && p.cards) {
-          return {
+          const updated = {
             ...p,
             cards: p.cards.map((pc) =>
               pc.cardId === cardId && !pc.used
@@ -1400,23 +1402,17 @@ function GameContent() {
                 : pc
             ),
           };
+          updatedCurrentPlayer = updated;
+          return updated;
         }
         return p;
       });
     });
 
     // currentTurnPlayerも更新
-    setCurrentTurnPlayer((prev: any) => {
-      if (!prev || !prev.cards) return prev;
-      return {
-        ...prev,
-        cards: prev.cards.map((pc: any) =>
-          pc.cardId === cardId && !pc.used
-            ? { ...pc, used: true, usedAt: new Date().toISOString() }
-            : pc
-        ),
-      };
-    });
+    if (updatedCurrentPlayer) {
+      setCurrentTurnPlayer(updatedCurrentPlayer);
+    }
 
     // 効果メッセージを表示
     setCardEffectMessage(result.message);
