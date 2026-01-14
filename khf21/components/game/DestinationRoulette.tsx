@@ -3,21 +3,39 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { Airport } from '@/types/database.types';
+import type { GroupColor } from '@/types/strategy.types';
 
 interface DestinationRouletteProps {
   availableAirports: Airport[];
   onDestinationSelected: (airport: Airport) => void;
   destinationNumber: number; // 次の目的地の順番（1, 2, 3...）
+  selectedGroupColor?: GroupColor; // 選択されたグループの色
 }
 
 export default function DestinationRoulette({
   availableAirports,
   onDestinationSelected,
   destinationNumber,
+  selectedGroupColor,
 }: DestinationRouletteProps) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAirport, setSelectedAirport] = useState<Airport | null>(null);
+
+  // グループ情報を取得
+  const getGroupInfo = (color?: GroupColor) => {
+    if (!color) return null;
+    switch (color) {
+      case 'red':
+        return { emoji: '🔴', name: 'Red', colorClass: 'from-red-500 to-red-600' };
+      case 'blue':
+        return { emoji: '🔵', name: 'Blue', colorClass: 'from-blue-500 to-blue-600' };
+      case 'green':
+        return { emoji: '🟢', name: 'Green', colorClass: 'from-green-500 to-green-600' };
+    }
+  };
+
+  const groupInfo = getGroupInfo(selectedGroupColor);
 
   // ルーレットを回す
   const handleSpin = (e?: React.MouseEvent) => {
@@ -95,8 +113,15 @@ export default function DestinationRoulette({
         >
           {/* トップネオンサイン */}
           <div className="text-center mb-6">
-            <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-bold mb-3">
-              🎯 次の目的地: 目的地{destinationNumber}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-3">
+              <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-bold">
+                🎯 次の目的地: 目的地{destinationNumber}
+              </div>
+              {groupInfo && (
+                <div className={`inline-block bg-gradient-to-r ${groupInfo.colorClass} text-white px-4 py-2 rounded-full text-sm font-bold`}>
+                  {groupInfo.emoji} {groupInfo.name} Group
+                </div>
+              )}
             </div>
             <h2 className="text-4xl font-bold text-white neon-text mb-2">
               ✈️ DESTINATION ROULETTE

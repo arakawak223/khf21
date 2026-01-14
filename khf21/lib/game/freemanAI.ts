@@ -6,6 +6,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { GamePlayer } from '@/types/multiplayer.types';
 import type { Airport, Attraction, Art, Gourmet } from '@/types/database.types';
+import type { AirportGroup, GroupColor } from '@/types/strategy.types';
 
 export type OvertakeActionType = 'move_back' | 'get_points' | 'skip_turn';
 export type SupportActionType = 'move_forward' | 'give_points' | 'encourage';
@@ -75,6 +76,33 @@ export class FreemanAI {
     // フォールバック: ランダムに選択
     const randomIndex = Math.floor(Math.random() * airports.length);
     return airports[randomIndex];
+  }
+
+  /**
+   * グループを自動選択
+   * 戦略: 未訪問の空港が最も多いグループを選択
+   * @param groups 3つの空港グループ
+   * @returns 選択されたグループの色
+   */
+  selectGroup(groups: AirportGroup[]): GroupColor {
+    console.log('AI: Selecting group...');
+
+    // 空港数が最も多いグループを選択
+    let bestGroup = groups[0];
+    let maxCount = groups[0].count;
+
+    for (const group of groups) {
+      if (group.count > maxCount) {
+        maxCount = group.count;
+        bestGroup = group;
+      }
+    }
+
+    console.log(
+      `AI: Selected ${bestGroup.emoji} ${bestGroup.colorName} group (${bestGroup.count} airports)`
+    );
+
+    return bestGroup.color;
   }
 
   /**

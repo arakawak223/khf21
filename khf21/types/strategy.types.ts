@@ -82,6 +82,17 @@ export interface DestinationSpecialEffect {
   icon: string;
 }
 
+// グループ選択システム
+export type GroupColor = 'red' | 'blue' | 'green';
+
+export interface AirportGroup {
+  color: GroupColor;
+  colorName: string;  // 'Red', 'Blue', 'Green'
+  emoji: string;      // '🔴', '🔵', '🟢'
+  airports: Airport[];
+  count: number;      // Number of airports in group
+}
+
 // ===============================
 // 先行到着・占有システム
 // ===============================

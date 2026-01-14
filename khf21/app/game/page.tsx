@@ -58,10 +58,11 @@ import { TurnIndicator } from '@/components/game/TurnIndicator';
 import { PlayerList } from '@/components/game/PlayerList';
 import { FreemanAI } from '@/lib/game/freemanAI';
 import { initializeAllPlayersStrategy } from '@/lib/game/playerInitializer';
-import { generateDestinationCandidates, selectRandomChooser } from '@/lib/game/destinationSelector';
+import { generateDestinationCandidates, selectRandomChooser, generateRandomGroups } from '@/lib/game/destinationSelector';
 import { updateCityOccupation, detectOvertake, executeCardEffect } from '@/lib/game/strategyLogic';
 import { getCardById } from '@/lib/game/strategyData';
-import type { DestinationCandidate, CityOccupation } from '@/types/strategy.types';
+import type { DestinationCandidate, CityOccupation, AirportGroup, GroupColor } from '@/types/strategy.types';
+import GroupSelector from '@/components/game/GroupSelector';
 
 // フリーマンのポイントバランス調整用倍率
 const FREEMAN_POINT_MULTIPLIER = 2.0; // フリーマンは人間プレイヤーの2倍のポイントを獲得
@@ -128,9 +129,10 @@ function GameContent() {
   // 訪問履歴記録用: 到着前のポイント
   const [arrivalStartPoints, setArrivalStartPoints] = useState<number>(0);
 
-  // 目的地3択システム用
-  const [destinationCandidates, setDestinationCandidates] = useState<DestinationCandidate[]>([]);
-  const [chooserPlayerId, setChooserPlayerId] = useState<string | null>(null);
+  // グループ選択システム用
+  const [airportGroups, setAirportGroups] = useState<AirportGroup[]>([]);
+  const [selectedGroupColor, setSelectedGroupColor] = useState<GroupColor | null>(null);
+  const [groupSelectionMode, setGroupSelectionMode] = useState<boolean>(false);
 
   // 都市占有システム用
   const [cityOccupations, setCityOccupations] = useState<Map<string, CityOccupation>>(new Map());
@@ -499,36 +501,31 @@ function GameContent() {
   const handleStartDestinationSelection = () => {
     if (!currentAirport || players.length === 0) return;
 
-    console.log('目的地選択を開始: 3択システム');
+    console.log('目的地選択を開始: 3グループシステム');
 
-    // 訪問済み空港を収集
-    const visitedCodes = visitedAirportIds.map(id => {
-      const airport = airports.find(a => a.id === id);
-      return airport?.code || '';
-    }).filter(code => code !== '');
-
-    // 占有都市情報を構築（実装予定 - 今は空のMapを使用）
-    const occupiedCities = new Map<string, { playerId: string; level: number }>();
-
-    // 3つの目的地候補を生成
-    const candidates = generateDestinationCandidates(
-      currentAirport,
+    // 3つのランダムグループを生成
+    const groups = generateRandomGroups(
       airports,
-      visitedCodes,
-      players,
-      currentTurnPlayer?.id || '',
-      occupiedCities
+      currentAirport.id,
+      visitedAirportIds
     );
 
-    // ランダムに選択者を決定
-    const chooser = selectRandomChooser(players);
+    console.log('グループ生成:', groups.map(g => `${g.emoji} ${g.count}空港`));
 
-    console.log(`目的地候補を生成:`, candidates.map(c => c.airport.city));
-    console.log(`選択者: ${chooser.player_nickname} (${chooser.player_type})`);
+    setAirportGroups(groups);
+    setGroupSelectionMode(true);
+    setSelectedGroupColor(null);
+    setScreenState('destination_roulette');
+  };
 
-    setDestinationCandidates(candidates);
-    setChooserPlayerId(chooser.id);
-    setScreenState('destination_roulette'); // 画面状態は同じものを使用
+  // グループ選択完了時
+  const handleGroupSelected = (color: GroupColor) => {
+    console.log(`グループ選択: ${color}`);
+
+    setSelectedGroupColor(color);
+    setGroupSelectionMode(false);
+
+    // ルーレット画面に移行（groupSelectionMode=falseになると自動的にルーレットが表示される）
   };
 
   // 目的地ルーレット完了時（ランダムに目的地を決定）
@@ -1992,14 +1989,28 @@ function GameContent() {
       console.log('フリーマンAI: 目的地を選択中...');
       setFreemanActionMessage('🎯 フリーマンが目的地を選んでいます...');
 
-      const availableAirports = airports.filter(
-        (a) => a.id !== freemanCurrentAirport?.id && !visitedAirportIds.includes(a.id)
+      // 現在地がない場合はスキップ
+      if (!freemanCurrentAirport && !currentAirport) {
+        console.error('現在地が不明です');
+        return;
+      }
+
+      // 3つのランダムグループを生成
+      const groups = generateRandomGroups(
+        airports,
+        freemanCurrentAirport?.id || currentAirport!.id,
+        visitedAirportIds
       );
 
-      if (availableAirports.length > 0) {
+      // フリーマンが最も空港数が多いグループを選択
+      const selectedColor = freemanAI.selectGroup(groups);
+      const selectedGroup = groups.find(g => g.color === selectedColor);
+
+      if (selectedGroup && selectedGroup.airports.length > 0) {
+        // 選択したグループからランダムに目的地を選択
         const destination = await freemanAI.selectDestination(
           freemanPlayer,
-          availableAirports,
+          selectedGroup.airports,
           visitedAirportIds
         );
 
@@ -2007,10 +2018,11 @@ function GameContent() {
         const visitedCount = freemanPlayer.visit_history?.length || 0;
         const isSharedDestination = visitedCount === 0; // 目的地1のみ共通
 
+        const groupInfo = selectedGroup.emoji + ' ' + selectedGroup.colorName;
         if (isSharedDestination) {
-          console.log(`フリーマンAI: 共通目的地を選択 - ${destination.name}`);
+          console.log(`フリーマンAI: ${groupInfo}グループから共通目的地を選択 - ${destination.name}`);
         } else {
-          console.log(`フリーマンAI: 個別目的地を選択 - ${destination.name}`);
+          console.log(`フリーマンAI: ${groupInfo}グループから個別目的地を選択 - ${destination.name}`);
         }
 
         // フリーマンの目的地選択を発表
@@ -2507,48 +2519,35 @@ function GameContent() {
             )}
 
             {screenState === 'destination_roulette' && (() => {
-              // 3択システム: 候補がある場合はDestinationChoiceを表示
-              if (destinationCandidates.length === 3 && chooserPlayerId) {
-                const chooser = players.find(p => p.id === chooserPlayerId);
+              // Phase 1: グループ選択
+              if (groupSelectionMode && airportGroups.length === 3) {
                 return (
-                  <DestinationChoice
-                    candidates={destinationCandidates}
-                    chooserName={chooser?.player_nickname || '不明'}
-                    isCurrentPlayerChooser={chooserPlayerId === currentTurnPlayer?.id}
-                    onSelect={(airportId: string) => {
-                      // 選択された候補を探す
-                      const selectedCandidate = destinationCandidates.find(c => c.airport.id === airportId);
-                      if (selectedCandidate) {
-                        console.log(`目的地を選択: ${selectedCandidate.airport.city}`);
-                        handleDestinationSelected(selectedCandidate.airport);
-                      }
-                      // 候補をクリア
-                      setDestinationCandidates([]);
-                      setChooserPlayerId(null);
-                    }}
+                  <GroupSelector
+                    groups={airportGroups}
+                    playerName={currentTurnPlayer?.player_nickname || 'プレイヤー'}
+                    isCurrentPlayer={true}
+                    onGroupSelected={handleGroupSelected}
                   />
                 );
               }
 
-              // フォールバック: 従来のルーレットシステム
-              // 利用可能な空港をフィルタ（現在地と訪問済みを除外）
-              let availableAirports = airports.filter(a =>
-                a.id !== currentAirport.id &&
-                !visitedAirportIds.includes(a.id)
-              );
-
-              // 選択肢がない場合は訪問済みも含める（ただし現在地は除く）
-              if (availableAirports.length === 0) {
-                availableAirports = airports.filter(a => a.id !== currentAirport.id);
+              // Phase 2: 選択したグループのルーレット
+              if (selectedGroupColor && airportGroups.length === 3) {
+                const selectedGroup = airportGroups.find(g => g.color === selectedGroupColor);
+                if (selectedGroup && selectedGroup.airports.length > 0) {
+                  return (
+                    <DestinationRoulette
+                      availableAirports={selectedGroup.airports}
+                      selectedGroupColor={selectedGroupColor}
+                      onDestinationSelected={handleDestinationSelected}
+                      destinationNumber={visitedAirportIds.length + 1}
+                    />
+                  );
+                }
               }
 
-              return (
-                <DestinationRoulette
-                  availableAirports={availableAirports}
-                  onDestinationSelected={handleDestinationSelected}
-                  destinationNumber={visitedAirportIds.length}
-                />
-              );
+              // Fallback: グループが生成されていない場合
+              return null;
             })()}
 
             {screenState === 'movement_roulette' && currentTurnPlayer && (

@@ -2,7 +2,7 @@
 
 import type { Airport } from '@/types/database.types';
 import type { GamePlayer } from '@/types/multiplayer.types';
-import type { DestinationCandidate, DestinationSpecialEffect } from '@/types/strategy.types';
+import type { DestinationCandidate, DestinationSpecialEffect, AirportGroup, GroupColor } from '@/types/strategy.types';
 
 // 2点間の距離を計算（Haversine公式）
 function calculateDistance(
@@ -263,4 +263,71 @@ export function scoreDestination(candidate: DestinationCandidate): number {
   }
 
   return score;
+}
+
+// ランダムに3グループに分割
+export function generateRandomGroups(
+  allAirports: Airport[],
+  currentAirportId: string,
+  visitedAirportIds: string[]
+): AirportGroup[] {
+  // 訪問済みと現在地を除外
+  let availableAirports = allAirports.filter(
+    airport =>
+      airport.id !== currentAirportId &&
+      !visitedAirportIds.includes(airport.id)
+  );
+
+  // 全空港訪問済みの場合は現在地以外を許可
+  if (availableAirports.length === 0) {
+    console.warn('全空港訪問済み - 再訪問を許可');
+    availableAirports = allAirports.filter(airport => airport.id !== currentAirportId);
+  }
+
+  // Fisher-Yatesアルゴリズムでシャッフル
+  const shuffled = [...availableAirports];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // 3つのグループに分割
+  const totalCount = shuffled.length;
+  const baseSize = Math.floor(totalCount / 3);
+  const remainder = totalCount % 3;
+
+  // 余りを最初のグループに分配（例: 50→17,17,16）
+  const group1Size = baseSize + (remainder > 0 ? 1 : 0);
+  const group2Size = baseSize + (remainder > 1 ? 1 : 0);
+  const group3Size = baseSize;
+
+  const groups: AirportGroup[] = [
+    {
+      color: 'red' as GroupColor,
+      colorName: 'Red',
+      emoji: '🔴',
+      airports: shuffled.slice(0, group1Size),
+      count: group1Size,
+    },
+    {
+      color: 'blue' as GroupColor,
+      colorName: 'Blue',
+      emoji: '🔵',
+      airports: shuffled.slice(group1Size, group1Size + group2Size),
+      count: group2Size,
+    },
+    {
+      color: 'green' as GroupColor,
+      colorName: 'Green',
+      emoji: '🟢',
+      airports: shuffled.slice(group1Size + group2Size),
+      count: group3Size,
+    },
+  ];
+
+  console.log(
+    `グループ生成: ${groups.map(g => `${g.emoji} ${g.count}空港`).join(', ')}`
+  );
+
+  return groups;
 }
