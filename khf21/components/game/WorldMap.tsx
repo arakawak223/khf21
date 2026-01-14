@@ -602,7 +602,7 @@ export default function WorldMap({
                   <div className="font-bold text-sm">🎯 {destinationAirport.city}</div>
                   <div className="text-xs text-gray-500">{destinationAirport.code}</div>
                   <div className="text-xs text-amber-600 font-semibold">
-                    {destinationNumber > 0 ? `目的地${destinationNumber}` : '共通目的地'}
+                    {destinationNumber > 0 ? `目的地${destinationNumber}` : '目的地'}
                   </div>
                 </div>
               </Tooltip>

@@ -15,6 +15,8 @@ import ResizableMapContainer from '@/components/game/ResizableMapContainer';
 import ResizablePanels from '@/components/game/ResizablePanels';
 import CardHand from '@/components/game/CardHand';
 import MissionPanel from '@/components/game/MissionPanel';
+import CardTargetSelector from '@/components/game/CardTargetSelector';
+import CardEffectNotification from '@/components/game/CardEffectNotification';
 import MultiplayerFlow from '@/components/game/multiplayer/MultiplayerFlow';
 import PointsDisplay from '@/components/game/PointsDisplay';
 import GameProgress from '@/components/game/GameProgress';
@@ -56,7 +58,8 @@ import { PlayerList } from '@/components/game/PlayerList';
 import { FreemanAI } from '@/lib/game/freemanAI';
 import { initializeAllPlayersStrategy } from '@/lib/game/playerInitializer';
 import { generateDestinationCandidates, selectRandomChooser } from '@/lib/game/destinationSelector';
-import { calculateArrivalBonus, updateCityOccupation, detectOvertake } from '@/lib/game/strategyLogic';
+import { updateCityOccupation, detectOvertake, executeCardEffect } from '@/lib/game/strategyLogic';
+import { getCardById } from '@/lib/game/strategyData';
 import type { DestinationCandidate, CityOccupation } from '@/types/strategy.types';
 
 // フリーマンのポイントバランス調整用倍率
@@ -111,6 +114,9 @@ function GameContent() {
     selectedGourmet?: string;
     arrivedPlayers: string[];
   }>>({});
+
+  // 目的地番号ごとの先着プレイヤーID（目的地1、目的地2...）
+  const [firstArrivalByDestinationNumber, setFirstArrivalByDestinationNumber] = useState<Record<number, string>>({});
   const [startingAirportId, setStartingAirportId] = useState<string | null>(null);
   const [showGameMenu, setShowGameMenu] = useState(false);
   const [freemanActionMessage, setFreemanActionMessage] = useState<string>('');
@@ -132,19 +138,27 @@ function GameContent() {
   const [showArrivalBreakdown, setShowArrivalBreakdown] = useState(false);
   const [arrivalBreakdown, setArrivalBreakdown] = useState<{
     arrivalBonus: number;
-    isFirstArrival: boolean;
+    isFirstToArrive: boolean;
     attractionPoints?: number;
     artPoints?: number;
     gourmetPoints?: number;
     attractionName?: string;
     artName?: string;
     gourmetName?: string;
+    playerName?: string;
+    destinationNumber?: number;
   } | null>(null);
 
   // フリーマン目的地発表用
   const [showFreemanDestination, setShowFreemanDestination] = useState(false);
   const [freemanSelectedDestination, setFreemanSelectedDestination] = useState<Airport | null>(null);
   const [freemanName, setFreemanName] = useState<string>('');
+
+  // カード使用関連
+  const [showCardTargetSelector, setShowCardTargetSelector] = useState(false);
+  const [selectedCardToUse, setSelectedCardToUse] = useState<string | null>(null);
+  const [cardEffectMessage, setCardEffectMessage] = useState<string>('');
+  const [showCardEffect, setShowCardEffect] = useState(false);
 
   // 空港データ取得
   useEffect(() => {
@@ -429,16 +443,7 @@ function GameContent() {
     // 経過日数を加算（滞在日数のトラッキングは残す）
     updateElapsedDays(days);
 
-    // 目的地数チェック（到着時に目的地数の上限に達している場合はゲーム終了）
-    // newVisitedIdsには開始空港が含まれるため、-1して実際の訪問目的地数を計算
-    const visitedDestinationsCount = newVisitedIds.length - 1;
-    console.log(`目的地チェック: ${visitedDestinationsCount}箇所 / ${maxDestinations}箇所`);
-
-    if (visitedDestinationsCount >= maxDestinations) {
-      console.log('🎉 全ての目的地を訪問！ゲームを終了します');
-      setGameState('completed');
-      return;
-    }
+    // ゲーム終了チェックはuseEffectで各プレイヤーのvisit_historyをチェックして行う
 
     // Multiplayer: 現在のターンプレイヤーの状態を更新（目的地到達）
     if ((gameSession as any).is_multiplayer && currentTurnPlayer) {
@@ -527,7 +532,7 @@ function GameContent() {
 
   // 目的地ルーレット完了時（ランダムに目的地を決定）
   const handleDestinationSelected = (destination: Airport) => {
-    if (!currentAirport) return;
+    if (!currentAirport || !currentTurnPlayer) return;
 
     const distance = calculateDistance(currentAirport, destination);
     const days = calculateStayDays(distance);
@@ -535,47 +540,91 @@ function GameContent() {
     // 次の目的地番号を計算（開始空港 + 訪問済み目的地 + 1）
     const nextDestinationNumber = visitedAirportIds.length + 1;
 
-    console.log(`Selected destination: ${destination.city}, distance: ${distance}km, stay: ${days} days (目的地${nextDestinationNumber})`);
+    // 現在のプレイヤーの訪問履歴から目的地番号を判定
+    const visitedCount = currentTurnPlayer.visit_history?.length || 0;
+    const isSharedDestination = visitedCount === 0; // 目的地1のみ共通
+
+    console.log(`Selected destination: ${destination.city}, distance: ${distance}km, stay: ${days} days (目的地${nextDestinationNumber}), 共通目的地: ${isSharedDestination}`);
 
     setDestinationAirport(destination);
     setTravelDistance(distance);
     setStayDays(days);
 
-    // 新しい目的地の選択済みリストを初期化
-    setDestinationSelections({
-      ...destinationSelections,
-      [destination.id]: { arrivedPlayers: [] },
-    });
-    console.log(`新しい目的地の選択リストを初期化: ${destination.city}`);
+    // 新しい目的地の選択済みリストを初期化（目的地1のみ）
+    if (isSharedDestination) {
+      setDestinationSelections({
+        ...destinationSelections,
+        [destination.id]: { arrivedPlayers: [] },
+      });
+      console.log(`新しい目的地の選択リストを初期化: ${destination.city}`);
+    }
 
-    // 経路上のマス目を計算
-    const spaces = calculateRouteSpaces(currentAirport, destination, 500);
-    setRouteSpaces(spaces);
-    setCurrentSpaceNumber(0); // 移動開始時は0マス目（出発地）
+    let currentPlayerRoute: Array<{ lat: number; lng: number; spaceNumber: number }> | null = null;
 
-    console.log(`Route has ${spaces.length} spaces (500km each)`);
+    const updatedPlayers = players.map((p) => {
+      // 目的地1の場合: 全プレイヤーにルートを設定
+      if (isSharedDestination) {
+        // route_spacesがnullまたは目的地に到達済みの場合は新しいルートを設定
+        if (p.route_spaces === null || p.current_space_number >= (p.route_spaces?.length || 0)) {
+          // 各プレイヤーの現在地を取得
+          const playerCurrentAirport = airports.find(a => a.id === p.current_airport_id);
+          if (playerCurrentAirport) {
+            // プレイヤーの現在地から新しい目的地へのルートを計算
+            const playerSpaces = calculateRouteSpaces(playerCurrentAirport, destination, 500);
+            console.log(`[共通] ${p.player_nickname}: ${playerCurrentAirport.city} → ${destination.city} (${playerSpaces.length}マス)`);
 
-    // Multiplayer: 目的地に到達していない全プレイヤーにルートを設定
-    if ((gameSession as any).is_multiplayer) {
-      setPlayers((prevPlayers) => {
-        const updatedPlayers = prevPlayers.map((p) => {
-          // 既に移動中で目的地が異なる場合はそのまま（先に到着した人が新しい目的地を選んだ場合）
-          // route_spacesがnullまたは目的地に到達済みの場合は新しいルートを設定
-          if (p.route_spaces === null || p.current_space_number >= (p.route_spaces?.length || 0)) {
+            // 現在のプレイヤーの場合は保存
+            if (p.id === currentTurnPlayer?.id) {
+              currentPlayerRoute = playerSpaces;
+            }
+
             return {
               ...p,
-              route_spaces: spaces,
+              route_spaces: playerSpaces,
               current_space_number: 0,
             };
           }
-          return p;
-        });
-        if (currentTurnPlayer) {
-          setCurrentTurnPlayer(updatedPlayers.find(p => p.id === currentTurnPlayer.id) || currentTurnPlayer);
         }
-        console.log(`共通目的地を設定: ${destination.city}`);
-        return updatedPlayers;
-      });
+      } else {
+        // 目的地2以降の場合: 現在のプレイヤーのみにルートを設定
+        if (p.id === currentTurnPlayer.id) {
+          const playerCurrentAirport = airports.find(a => a.id === p.current_airport_id);
+          if (playerCurrentAirport) {
+            const playerSpaces = calculateRouteSpaces(playerCurrentAirport, destination, 500);
+            console.log(`[個別] ${p.player_nickname}: ${playerCurrentAirport.city} → ${destination.city} (${playerSpaces.length}マス)`);
+            currentPlayerRoute = playerSpaces;
+
+            return {
+              ...p,
+              route_spaces: playerSpaces,
+              current_space_number: 0,
+            };
+          }
+        }
+      }
+      return p;
+    });
+
+    setPlayers(updatedPlayers);
+
+    // 現在のプレイヤーの状態を更新
+    if (currentTurnPlayer) {
+      const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
+      if (updatedCurrentPlayer) {
+        setCurrentTurnPlayer(updatedCurrentPlayer);
+      }
+    }
+
+    // グローバル状態を更新
+    if (currentPlayerRoute) {
+      setRouteSpaces(currentPlayerRoute);
+      setCurrentSpaceNumber(0);
+    }
+
+    if (isSharedDestination) {
+      console.log(`共通目的地を設定: ${destination.city}`);
+    } else {
+      console.log(`個別目的地を設定: ${destination.city} (${currentTurnPlayer.player_nickname})`);
     }
 
     // 目的地紹介画面へ遷移
@@ -633,26 +682,44 @@ function GameContent() {
 
       console.log(`Arrived at destination!`);
 
-      // 到着ファンファーレを再生
-      playFanfare();
+      // 到着ファンファーレを再生（人間プレイヤー用の新しいBGM）
+      playFanfare(true);
+
+      // プレイヤーのroute_spacesから実際の到着空港を特定
+      const finalRouteSpace = currentTurnPlayer.route_spaces[currentTurnPlayer.route_spaces.length - 1];
+      const actualDestinationAirport = airports.reduce((nearest, airport) => {
+        const distToCurrent = Math.sqrt(
+          Math.pow(airport.latitude - finalRouteSpace.lat, 2) +
+          Math.pow(airport.longitude - finalRouteSpace.lng, 2)
+        );
+        const distToNearest = Math.sqrt(
+          Math.pow(nearest.latitude - finalRouteSpace.lat, 2) +
+          Math.pow(nearest.longitude - finalRouteSpace.lng, 2)
+        );
+        return distToCurrent < distToNearest ? airport : nearest;
+      }, airports[0]);
+
+      console.log(`=== プレイヤー${currentTurnPlayer.player_nickname}の到着地特定 ===`);
+      console.log(`route_spaces最終地点: lat=${finalRouteSpace.lat}, lng=${finalRouteSpace.lng}`);
+      console.log(`実際の到着空港: ${actualDestinationAirport.city} (${actualDestinationAirport.name})`);
 
       // 到着地の名所・アート・グルメをフェッチ
       try {
         setLoading(true);
         console.log('=== 到着地データ取得 ===');
-        console.log(`目的地: ${destinationAirport.city}, ${destinationAirport.country}`);
+        console.log(`目的地: ${actualDestinationAirport.city}, ${actualDestinationAirport.country}`);
 
-        // 先行到着者かどうかを判定
-        const currentDestId = destinationAirport.id;
+        // 先着者かどうかを判定
+        const currentDestId = actualDestinationAirport.id;
         const currentSelections = destinationSelections[currentDestId] || { arrivedPlayers: [] };
-        const isFirstArrival = currentSelections.arrivedPlayers.length === 0;
+        const isFirstToArrive = currentSelections.arrivedPlayers.length === 0;
 
-        console.log(`到着判定: ${isFirstArrival ? '先行到着者' : '後続到着者'} (${currentSelections.arrivedPlayers.length}人目)`);
+        console.log(`到着判定: ${isFirstToArrive ? '先着者' : '後着者'} (${currentSelections.arrivedPlayers.length + 1}番目)`);
 
         const [attractions, arts, gourmets] = await Promise.all([
-          getAttractionsByCountry(destinationAirport.country),
-          getArtsByCity(destinationAirport.city),
-          getGourmetByCountry(destinationAirport.country),
+          getAttractionsByCountry(actualDestinationAirport.country),
+          getArtsByCity(actualDestinationAirport.city),
+          getGourmetByCountry(actualDestinationAirport.country),
         ]);
 
         console.log(`名所データ: ${attractions.length}件`);
@@ -661,13 +728,13 @@ function GameContent() {
 
         // データ不足の警告
         if (attractions.length === 0) {
-          console.warn(`⚠️ ${destinationAirport.country}の名所データがありません`);
+          console.warn(`⚠️ ${actualDestinationAirport.country}の名所データがありません`);
         }
         if (arts.length === 0) {
-          console.warn(`⚠️ ${destinationAirport.city}のアートデータがありません`);
+          console.warn(`⚠️ ${actualDestinationAirport.city}のアートデータがありません`);
         }
         if (gourmets.length === 0) {
-          console.warn(`⚠️ ${destinationAirport.country}のグルメデータがありません`);
+          console.warn(`⚠️ ${actualDestinationAirport.country}のグルメデータがありません`);
         }
 
         // 後続到着者の場合は選択済みアイテムを除外
@@ -675,7 +742,7 @@ function GameContent() {
         let availableArts = arts;
         let availableGourmets = gourmets;
 
-        if (!isFirstArrival) {
+        if (!isFirstToArrive) {
           // 選択済みアイテムを除外
           if (currentSelections.selectedAttraction) {
             availableAttractions = attractions.filter(a => a.id !== currentSelections.selectedAttraction);
@@ -697,11 +764,11 @@ function GameContent() {
           ? availableAttractions[Math.floor(Math.random() * availableAttractions.length)]
           : {
               id: 'temp-attraction',
-              name: `${destinationAirport.city}の名所`,
-              name_ja: `${destinationAirport.city}の名所`,
-              country: destinationAirport.country,
+              name: `${actualDestinationAirport.city}の名所`,
+              name_ja: `${actualDestinationAirport.city}の名所`,
+              country: actualDestinationAirport.country,
               impressed_points: 50,
-              description: `${destinationAirport.city}を代表する素晴らしい観光地です。`,
+              description: `${actualDestinationAirport.city}を代表する素晴らしい観光地です。`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             } as Attraction;
@@ -710,11 +777,11 @@ function GameContent() {
           ? availableArts[Math.floor(Math.random() * availableArts.length)]
           : {
               id: 'temp-art',
-              name: `${destinationAirport.city}の芸術作品`,
-              name_ja: `${destinationAirport.city}の芸術作品`,
-              city: destinationAirport.city,
+              name: `${actualDestinationAirport.city}の芸術作品`,
+              name_ja: `${actualDestinationAirport.city}の芸術作品`,
+              city: actualDestinationAirport.city,
               impressed_points: 50,
-              description: `${destinationAirport.city}で鑑賞できる美しい芸術作品です。`,
+              description: `${actualDestinationAirport.city}で鑑賞できる美しい芸術作品です。`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             } as Art;
@@ -723,11 +790,11 @@ function GameContent() {
           ? availableGourmets[Math.floor(Math.random() * availableGourmets.length)]
           : {
               id: 'temp-gourmet',
-              name: `${destinationAirport.city}の郷土料理`,
-              name_ja: `${destinationAirport.city}の郷土料理`,
-              country: destinationAirport.country,
+              name: `${actualDestinationAirport.city}の郷土料理`,
+              name_ja: `${actualDestinationAirport.city}の郷土料理`,
+              country: actualDestinationAirport.country,
               impressed_points: 50,
-              description: `${destinationAirport.city}で味わえる美味しい料理です。`,
+              description: `${actualDestinationAirport.city}で味わえる美味しい料理です。`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             } as Gourmet;
@@ -757,13 +824,16 @@ function GameContent() {
           setCurrentEventIndex(0);
           setScreenState('events');
         } else {
-          const distance = calculateDistance(currentAirport!, destinationAirport);
+          const distance = calculateDistance(currentAirport!, actualDestinationAirport);
           const days = calculateStayDays(distance);
-          performMove(destinationAirport, distance, days);
+          performMove(actualDestinationAirport, distance, days);
         }
       } finally {
         setLoading(false);
       }
+
+      // 実際の到着空港をグローバル状態に設定（ArrivalSelection画面で使用）
+      setDestinationAirport(actualDestinationAirport);
     } else {
       // まだ到達していない - マス数を更新して移動中イベントを生成
       setCurrentSpaceNumber(newSpaceNumber);
@@ -874,35 +944,84 @@ function GameContent() {
       setArrivalStartPoints(currentTurnPlayer.total_points);
     }
 
-    // 先行到着ボーナス・都市占有システム
+    // 先着ボーナス・都市占有システム
     let arrivalBonus = 0;
     let tollFee = 0;
-    let isFirstArrival = false;
+    let isFirstToArrive = false;
     let rank = 1;
 
-    if (destinationAirport && currentTurnPlayer) {
-      const destId = destinationAirport.id;
+    if (currentTurnPlayer && currentTurnPlayer.route_spaces && currentTurnPlayer.route_spaces.length > 0) {
+      // プレイヤーのroute_spacesから実際の到着空港を特定
+      const finalRouteSpace = currentTurnPlayer.route_spaces[currentTurnPlayer.route_spaces.length - 1];
+      const actualDestinationAirport = airports.reduce((nearest, airport) => {
+        const distToCurrent = Math.sqrt(
+          Math.pow(airport.latitude - finalRouteSpace.lat, 2) +
+          Math.pow(airport.longitude - finalRouteSpace.lng, 2)
+        );
+        const distToNearest = Math.sqrt(
+          Math.pow(nearest.latitude - finalRouteSpace.lat, 2) +
+          Math.pow(nearest.longitude - finalRouteSpace.lng, 2)
+        );
+        return distToCurrent < distToNearest ? airport : nearest;
+      }, airports[0]);
+
+      const destId = actualDestinationAirport.id;
       const currentSelections = destinationSelections[destId] || { arrivedPlayers: [] };
 
-      // 新しいボーナス計算システムを使用
-      const bonusResult = calculateArrivalBonus(
-        destId,
-        travelDistance,
-        cityOccupations,
-        currentTurnPlayer.id
-      );
+      // 現在のプレイヤーの目的地番号（訪問履歴の長さ + 1）
+      const currentDestinationNumber = (currentTurnPlayer.visit_history?.length || 0) + 1;
 
-      arrivalBonus = bonusResult.bonus;
-      tollFee = bonusResult.tollFee;
-      isFirstArrival = bonusResult.isFirstArrival;
-      rank = bonusResult.rank;
+      console.log(`=== handleArrivalSelection: 到着空港特定 ===`);
+      console.log(`プレイヤー: ${currentTurnPlayer.player_nickname}`);
+      console.log(`実際の到着空港: ${actualDestinationAirport.city} (ID: ${destId})`);
+      console.log(`目的地番号: ${currentDestinationNumber}`);
+      console.log(`既到着者数: ${currentSelections.arrivedPlayers.length}`);
 
-      console.log(`到着ボーナス: ${arrivalBonus}pt (順位: ${rank}, 初到着: ${isFirstArrival}, 通行料: ${tollFee}pt)`);
+      // 目的地番号ごとに先着判定（空港ではなく目的地順番で判定）
+      isFirstToArrive = !firstArrivalByDestinationNumber[currentDestinationNumber];
+
+      if (isFirstToArrive) {
+        // 先着者を記録
+        setFirstArrivalByDestinationNumber({
+          ...firstArrivalByDestinationNumber,
+          [currentDestinationNumber]: currentTurnPlayer.id,
+        });
+        console.log(`目的地${currentDestinationNumber}の先着者: ${currentTurnPlayer.player_nickname}`);
+      } else {
+        console.log(`目的地${currentDestinationNumber}の後着者（先着者: ${firstArrivalByDestinationNumber[currentDestinationNumber]}）`);
+      }
+
+      rank = currentSelections.arrivedPlayers.length + 1;
+
+      // 先着者のみが到着ボーナスを得る
+      if (isFirstToArrive) {
+        // 先着ボーナス計算
+        const baseBonus = Math.floor(travelDistance / 100);
+        const firstArrivalBonus = 100;
+        arrivalBonus = baseBonus + firstArrivalBonus;
+        tollFee = 0;
+        console.log(`先着ボーナス: ${arrivalBonus}pt (基本: ${baseBonus}pt + 先着: ${firstArrivalBonus}pt)`);
+      } else {
+        // 後着者はボーナスなし（通行料のみ）
+        arrivalBonus = 0;
+
+        // 都市占有者がいる場合は通行料を計算
+        const occupation = cityOccupations.get(destId);
+        if (occupation && occupation.occupiedBy !== currentTurnPlayer.id) {
+          tollFee = occupation.tollFee;
+          console.log(`後着者: ボーナスなし、通行料: ${tollFee}pt`);
+        } else {
+          tollFee = 0;
+          console.log(`後着者: ボーナスなし、通行料なし`);
+        }
+      }
+
+      console.log(`到着判定: 順位${rank}番目, 先着: ${isFirstToArrive}, ボーナス: ${arrivalBonus}pt, 通行料: ${tollFee}pt`);
 
       // 都市占有を更新
       const newOccupations = updateCityOccupation(
         destId,
-        destinationAirport.city,
+        actualDestinationAirport.city,
         currentTurnPlayer.id,
         cityOccupations
       );
@@ -972,7 +1091,7 @@ function GameContent() {
             setCurrentTurnPlayer(updatedCurrentPlayer);
           }
 
-          const bonusType = isFirstArrival ? '初到着ボーナス' : tollFee > 0 ? `到着ポイント（通行料-${tollFee}）` : '到着ポイント';
+          const bonusType = isFirstToArrive ? '先着ボーナス' : tollFee > 0 ? `到着ポイント（通行料-${tollFee}）` : '到着ポイント';
           const logSuffix = isFreeman ? ` (フリーマンボーナス: ${multiplier}x)` : '';
           console.log(`プレイヤー ${currentTurnPlayer.player_nickname} に${bonusType} ${adjustedBonus}pt を付与${logSuffix}`);
           return updatedPlayers;
@@ -1001,13 +1120,15 @@ function GameContent() {
     // ポイント内訳を設定
     const breakdown = {
       arrivalBonus: arrivalBonus || 0,
-      isFirstArrival: isFirstArrival,
+      isFirstToArrive: isFirstToArrive,
       attractionPoints: option.type === 'attraction' ? (option.data as Attraction).impressed_points : undefined,
       artPoints: option.type === 'art' ? (option.data as Art).impressed_points : undefined,
       gourmetPoints: option.type === 'gourmet' ? (option.data as Gourmet).impressed_points : undefined,
       attractionName: option.type === 'attraction' ? (option.data as Attraction).name : undefined,
       artName: option.type === 'art' ? (option.data as Art).name : undefined,
       gourmetName: option.type === 'gourmet' ? (option.data as Gourmet).name : undefined,
+      destinationNumber: currentTurnPlayer ? (currentTurnPlayer.visit_history?.length || 0) + 1 : 1,
+      playerName: currentTurnPlayer?.player_nickname,
     };
     console.log('到着ポイント内訳を設定:', breakdown);
     console.log('イベント数:', allEvents.length);
@@ -1095,32 +1216,39 @@ function GameContent() {
         // 到達済み - 移動完了
         const destination = destinationAirport;
         if (destination && currentAirport) {
-          // 訪問履歴を記録
-          // 目的地番号: 現在の訪問履歴の長さ + 1（次の目的地番号）
-          const currentDestinationNumber = (latestPlayer.visit_history?.length || 0) + 1;
-          const pointsEarned = latestPlayer.total_points - arrivalStartPoints;
-          const visit = {
-            destinationNumber: currentDestinationNumber,
-            airportId: destination.id,
-            airportName: destination.name_ja || destination.name,
-            city: destination.city,
-            pointsEarned: pointsEarned,
-            visitedAt: new Date().toISOString(),
-          };
+          // フリーマンの場合は、既に到着処理で visit_history に記録済みなのでスキップ
+          const isFreeman = latestPlayer.player_type !== 'human';
 
-          // プレイヤーの visit_history に追加
-          setPlayers((prevPlayers) => {
-            return prevPlayers.map((p) =>
-              p.id === latestPlayer.id
-                ? {
-                    ...p,
-                    visit_history: [...(p.visit_history || []), visit],
-                  }
-                : p
-            );
-          });
+          if (!isFreeman) {
+            // 人間プレイヤーのみ訪問履歴を記録
+            // 目的地番号: 現在の訪問履歴の長さ + 1（次の目的地番号）
+            const currentDestinationNumber = (latestPlayer.visit_history?.length || 0) + 1;
+            const pointsEarned = latestPlayer.total_points - arrivalStartPoints;
+            const visit = {
+              destinationNumber: currentDestinationNumber,
+              airportId: destination.id,
+              airportName: destination.name_ja || destination.name,
+              city: destination.city,
+              pointsEarned: pointsEarned,
+              visitedAt: new Date().toISOString(),
+            };
 
-          console.log(`訪問履歴を記録: ${destination.city} (目的地${currentDestinationNumber}) - ${pointsEarned}pt獲得`);
+            // プレイヤーの visit_history に追加
+            setPlayers((prevPlayers) => {
+              return prevPlayers.map((p) =>
+                p.id === latestPlayer.id
+                  ? {
+                      ...p,
+                      visit_history: [...(p.visit_history || []), visit],
+                    }
+                  : p
+              );
+            });
+
+            console.log(`訪問履歴を記録: ${destination.city} (目的地${currentDestinationNumber}) - ${pointsEarned}pt獲得`);
+          } else {
+            console.log(`フリーマンの訪問履歴は既に記録済みのためスキップ`);
+          }
 
           const distance = calculateDistance(currentAirport, destination);
           const days = calculateStayDays(distance);
@@ -1213,6 +1341,98 @@ function GameContent() {
       console.log(`フリーマンの自動ターン開始: ${nextPlayer.player_nickname}`);
       await executeFreemanTurn(nextPlayer);
     }
+  };
+
+  // カード使用ハンドラ
+  const handleUseCard = (cardId: string) => {
+    if (!currentTurnPlayer) {
+      console.error('No current turn player');
+      return;
+    }
+
+    const card = getCardById(cardId);
+    if (!card) {
+      console.error('Card not found:', cardId);
+      return;
+    }
+
+    console.log(`カード使用: ${card.nameJa} (${cardId})`);
+
+    // 攻撃カードの場合は対戦相手を選択する必要がある
+    if (card.effect.target === 'opponent') {
+      setSelectedCardToUse(cardId);
+      setShowCardTargetSelector(true);
+    } else {
+      // 自分対象のカードはすぐに実行
+      executeCardOnPlayer(cardId, null);
+    }
+  };
+
+  // カードを実際に使用する
+  const executeCardOnPlayer = (cardId: string, targetPlayerId: string | null) => {
+    if (!currentTurnPlayer) return;
+
+    const card = getCardById(cardId);
+    if (!card) return;
+
+    console.log(`カード効果実行: ${card.nameJa}`, targetPlayerId ? `対象: ${targetPlayerId}` : '');
+
+    // executeCardEffect関数を呼び出して効果を適用
+    const result = executeCardEffect(
+      card.effect,
+      currentTurnPlayer.id,
+      targetPlayerId,
+      players
+    );
+
+    // プレイヤー状態を更新
+    setPlayers(result.updatedPlayers);
+
+    // カードを使用済みにマーク
+    setPlayers((prevPlayers) => {
+      return prevPlayers.map((p) => {
+        if (p.id === currentTurnPlayer.id && p.cards) {
+          return {
+            ...p,
+            cards: p.cards.map((pc) =>
+              pc.cardId === cardId && !pc.used
+                ? { ...pc, used: true, usedAt: new Date().toISOString() }
+                : pc
+            ),
+          };
+        }
+        return p;
+      });
+    });
+
+    // currentTurnPlayerも更新
+    setCurrentTurnPlayer((prev: any) => {
+      if (!prev || !prev.cards) return prev;
+      return {
+        ...prev,
+        cards: prev.cards.map((pc: any) =>
+          pc.cardId === cardId && !pc.used
+            ? { ...pc, used: true, usedAt: new Date().toISOString() }
+            : pc
+        ),
+      };
+    });
+
+    // 効果メッセージを表示
+    setCardEffectMessage(result.message);
+    setShowCardEffect(true);
+
+    // モーダルを閉じる
+    setShowCardTargetSelector(false);
+    setSelectedCardToUse(null);
+
+    console.log(`カード効果適用完了: ${result.message}`);
+  };
+
+  // カード効果メッセージを閉じる
+  const handleCloseCardEffect = () => {
+    setShowCardEffect(false);
+    setCardEffectMessage('');
   };
 
   // ターン終了処理
@@ -1346,30 +1566,40 @@ function GameContent() {
           console.log(`=== フリーマンAI: 目的地到着処理開始 ===`);
           console.log(`フリーマンAI: 到着地 - ${arrivedAirport.name} (${arrivedAirport.city})`);
 
-          // 到着ファンファーレを再生（await で完了を待つ）
-          try {
-            console.log(`フリーマンAI: ファンファーレ再生開始`);
-            await playFanfare();
-            console.log(`フリーマンAI: ファンファーレ再生完了`);
-          } catch (fanfareError) {
+          // 到着ファンファーレをバックグラウンドで再生（待機しない）
+          // フリーマン用の古いファンファーレ（Web Audio API）を使用
+          playFanfare(false).catch(fanfareError => {
             console.error(`フリーマンAI: ファンファーレ再生エラー:`, fanfareError);
-          }
+          });
+          console.log(`フリーマンAI: ファンファーレを非同期再生`);
 
           setFreemanActionMessage(`🎉 ${arrivedAirport.city} に到着しました!`);
-
-          await new Promise((resolve) => setTimeout(resolve, 2000));
 
           // 到着選択処理
           try {
             console.log(`フリーマンAI: 到着選択処理開始`);
             setFreemanActionMessage('📋 到着体験を選択中...');
 
-            // 先行到着者かどうかを判定（到着した空港IDで判定）
+            // フリーマンの目的地番号（訪問履歴の長さ + 1）
+            const freemanDestinationNumber = (freemanPlayer.visit_history?.length || 0) + 1;
+
+            // 先着者かどうかを判定（目的地番号ごとに判定）
             const currentDestId = arrivedAirport.id;
             const currentSelections = destinationSelections[currentDestId] || { arrivedPlayers: [] };
-            const isFirstArrival = currentSelections.arrivedPlayers.length === 0;
+            const isFirstToArrive = !firstArrivalByDestinationNumber[freemanDestinationNumber];
 
-            console.log(`フリーマンAI到着判定: ${isFirstArrival ? '先行到着者' : '後続到着者'} (${currentSelections.arrivedPlayers.length}人目) at ${arrivedAirport.city}`);
+            if (isFirstToArrive) {
+              // 先着者を記録
+              setFirstArrivalByDestinationNumber({
+                ...firstArrivalByDestinationNumber,
+                [freemanDestinationNumber]: freemanPlayer.id,
+              });
+              console.log(`フリーマンAI: 目的地${freemanDestinationNumber}の先着者`);
+            } else {
+              console.log(`フリーマンAI: 目的地${freemanDestinationNumber}の後着者（先着者: ${firstArrivalByDestinationNumber[freemanDestinationNumber]}）`);
+            }
+
+            console.log(`フリーマンAI到着判定: ${isFirstToArrive ? '先着者' : '後着者'} at ${arrivedAirport.city} (目的地${freemanDestinationNumber})`);
 
             // 到着オプションを取得
             const [attractions, arts, gourmets] = await Promise.all([
@@ -1385,7 +1615,7 @@ function GameContent() {
             let availableArts = arts;
             let availableGourmets = gourmets;
 
-            if (!isFirstArrival) {
+            if (!isFirstToArrive) {
               if (currentSelections.selectedAttraction) {
                 availableAttractions = attractions.filter(a => a.id !== currentSelections.selectedAttraction);
                 console.log(`フリーマンAI: 名所から選択済みを除外: ${availableAttractions.length}/${attractions.length}件`);
@@ -1480,9 +1710,9 @@ function GameContent() {
 
             console.log(`フリーマンAI選択完了: ${selectedType} - ${selectedExperience.name_ja || selectedExperience.name} (+${points}pt)`);
 
-            // 先行到着ボーナスポイントを計算（移動距離はroute_spacesから推定）
+            // 先着ボーナスポイントを計算（移動距離はroute_spacesから推定）
             let arrivalBonus = 0;
-            if (isFirstArrival) {
+            if (isFirstToArrive) {
               const travelDistanceEstimate = freemanPlayer.route_spaces.length * 500; // 500km/マス
               if (travelDistanceEstimate < 500) {
                 arrivalBonus = 100;
@@ -1491,9 +1721,9 @@ function GameContent() {
               } else {
                 arrivalBonus = 200;
               }
-              console.log(`フリーマンAI先行到着ボーナス: ${arrivalBonus}pt (推定距離: ${travelDistanceEstimate}km)`);
+              console.log(`フリーマンAI先着ボーナス: ${arrivalBonus}pt (推定距離: ${travelDistanceEstimate}km)`);
               points += arrivalBonus; // 選択ポイントに加算
-              setFreemanActionMessage(`🎉 先行到着! +${arrivalBonus}pt ボーナス`);
+              setFreemanActionMessage(`🎉 先着! +${arrivalBonus}pt ボーナス`);
             }
 
             // 選択を記録
@@ -1526,12 +1756,18 @@ function GameContent() {
               updateElapsedDays(stayDays);
             }
 
-            // 先行プレイヤーが既に新しい目的地へ向かっているかチェック
+            // 先行プレイヤーが既に新しい目的地を選択したかチェック
             const humanPlayer = updatedPlayers.find((p) => p.player_type === 'human');
             let newRouteForFreeman: Array<{ lat: number; lng: number; spaceNumber: number }> | null = null;
 
-            if (humanPlayer && humanPlayer.route_spaces && humanPlayer.route_spaces.length > 0) {
-              // 人間プレイヤーが新しい目的地へ向かっている
+            // 人間プレイヤーが到着済みで、かつフリーマンと異なる目的地に向かっている場合のみ追跡
+            const humanHasArrived = humanPlayer &&
+              humanPlayer.route_spaces &&
+              humanPlayer.route_spaces.length > 0 &&
+              humanPlayer.current_space_number >= humanPlayer.route_spaces.length;
+
+            if (humanHasArrived && humanPlayer.route_spaces) {
+              // 人間プレイヤーが到着済みで新しい目的地を選択している
               const humanDestination = humanPlayer.route_spaces[humanPlayer.route_spaces.length - 1];
 
               // フリーマンの到着地から人間プレイヤーの目的地への経路を計算
@@ -1556,13 +1792,17 @@ function GameContent() {
                   newRouteForFreeman = calculateRouteSpaces(freemanStartAirport, targetAirport, 500);
                   console.log(`フリーマンAI: 先行プレイヤーを追跡 ${arrivedAirport.city} → ${targetAirport.city} (${newRouteForFreeman.length}マス)`);
                   setFreemanActionMessage(`🎯 次の目的地: ${targetAirport.city} を追跡中`);
+                } else {
+                  console.log(`フリーマンAI: 人間プレイヤーと同じ目的地のため、待機`);
                 }
               }
+            } else {
+              console.log(`フリーマンAI: 人間プレイヤーが未到着のため、次の目的地選択を待機`);
             }
 
             // ポイント加算と到着処理: 現在地を更新、必要に応じて新しいルートを設定
             // visit_historyを更新するための訪問記録を作成
-            const freemanDestinationNumber = (freemanPlayer.visit_history?.length || 0) + 1;
+            // freemanDestinationNumber は既に定義済み（line 1581）
             const freemanVisit = {
               destinationNumber: freemanDestinationNumber,
               airportId: arrivedAirport.id,
@@ -1603,13 +1843,15 @@ function GameContent() {
 
             const breakdown = {
               arrivalBonus: arrivalBonus,
-              isFirstArrival: isFirstArrival,
+              isFirstToArrive: isFirstToArrive,
               attractionPoints: selectedType === 'attraction' ? experiencePointsAdjusted : undefined,
               artPoints: selectedType === 'art' ? experiencePointsAdjusted : undefined,
               gourmetPoints: selectedType === 'gourmet' ? experiencePointsAdjusted : undefined,
               attractionName: selectedType === 'attraction' ? (selectedAttraction.name_ja || selectedAttraction.name) : undefined,
               artName: selectedType === 'art' ? (selectedArt.name_ja || selectedArt.name) : undefined,
               gourmetName: selectedType === 'gourmet' ? (selectedGourmet.name_ja || selectedGourmet.name) : undefined,
+              playerName: freemanPlayer.player_nickname,
+              destinationNumber: freemanDestinationNumber,
             };
 
             console.log('フリーマンAI: 到着ポイント内訳を設定:', breakdown);
@@ -1630,11 +1872,16 @@ function GameContent() {
             console.error('スタックトレース:', err instanceof Error ? err.stack : 'なし');
             console.error('========================================');
 
-            // エラー時も先行プレイヤーを追跡
+            // エラー時も先行プレイヤーが到着済みなら追跡
             const humanPlayer = updatedPlayers.find((p) => p.player_type === 'human');
             let newRouteForFreeman: Array<{ lat: number; lng: number; spaceNumber: number }> | null = null;
 
-            if (humanPlayer && humanPlayer.route_spaces && humanPlayer.route_spaces.length > 0) {
+            const humanHasArrivedError = humanPlayer &&
+              humanPlayer.route_spaces &&
+              humanPlayer.route_spaces.length > 0 &&
+              humanPlayer.current_space_number >= humanPlayer.route_spaces.length;
+
+            if (humanHasArrivedError && humanPlayer.route_spaces) {
               const humanDestination = humanPlayer.route_spaces[humanPlayer.route_spaces.length - 1];
               const freemanStartAirport = arrivedAirport;
 
@@ -1654,8 +1901,12 @@ function GameContent() {
                 if (targetAirport && targetAirport.id !== arrivedAirport.id) {
                   newRouteForFreeman = calculateRouteSpaces(freemanStartAirport, targetAirport, 500);
                   console.log(`フリーマンAI(エラー時): 先行プレイヤーを追跡 ${arrivedAirport.city} → ${targetAirport.city}`);
+                } else {
+                  console.log(`フリーマンAI(エラー時): 人間プレイヤーと同じ目的地のため、待機`);
                 }
               }
+            } else {
+              console.log(`フリーマンAI(エラー時): 人間プレイヤーが未到着のため、次の目的地選択を待機`);
             }
 
             // 経過日数の更新（エラー時も到着は到着なので滞在日数をカウント）
@@ -1756,44 +2007,73 @@ function GameContent() {
           visitedAirportIds
         );
 
-        console.log(`フリーマンAI: 共通目的地を選択 - ${destination.name}`);
+        // フリーマンの訪問履歴から目的地番号を判定
+        const visitedCount = freemanPlayer.visit_history?.length || 0;
+        const isSharedDestination = visitedCount === 0; // 目的地1のみ共通
+
+        if (isSharedDestination) {
+          console.log(`フリーマンAI: 共通目的地を選択 - ${destination.name}`);
+        } else {
+          console.log(`フリーマンAI: 個別目的地を選択 - ${destination.name}`);
+        }
 
         // フリーマンの目的地選択を発表
         setFreemanSelectedDestination(destination);
         setFreemanName(freemanPlayer.player_nickname);
         setShowFreemanDestination(true);
 
-        // 共通目的地を設定
+        // 目的地を設定
         setDestinationAirport(destination);
 
-        // 新しい目的地の選択済みリストを初期化
-        setDestinationSelections({
-          ...destinationSelections,
-          [destination.id]: { arrivedPlayers: [] },
-        });
-        console.log(`新しい目的地の選択リストを初期化: ${destination.city}`);
+        // 新しい目的地の選択済みリストを初期化（目的地1のみ）
+        if (isSharedDestination) {
+          setDestinationSelections({
+            ...destinationSelections,
+            [destination.id]: { arrivedPlayers: [] },
+          });
+          console.log(`新しい目的地の選択リストを初期化: ${destination.city}`);
+        }
 
-        // ルートを計算して全プレイヤーに設定
-        if (freemanCurrentAirport) {
-          const spaces = calculateRouteSpaces(freemanCurrentAirport, destination);
-
-          // 全プレイヤーに共通ルートを設定（到達済みのプレイヤーのみ）
-          setPlayers((prevPlayers: any[]) => {
-            const updatedPlayers = prevPlayers.map((p: any) => {
+        // ルートを計算
+        setPlayers((prevPlayers: any[]) => {
+          const updatedPlayers = prevPlayers.map((p: any) => {
+            // 目的地1の場合: 全プレイヤーにルートを設定
+            if (isSharedDestination) {
               // ルートがnullまたは到達済みの場合のみ新しいルートを設定
               if (p.route_spaces === null || p.current_space_number >= (p.route_spaces?.length || 0)) {
-                return {
-                  ...p,
-                  route_spaces: spaces,
-                  current_space_number: 0,
-                };
+                // 各プレイヤーの現在地を取得
+                const playerCurrentAirport = airports.find(a => a.id === p.current_airport_id);
+                if (playerCurrentAirport) {
+                  // プレイヤーの現在地から新しい目的地へのルートを計算
+                  const playerSpaces = calculateRouteSpaces(playerCurrentAirport, destination);
+                  console.log(`[共通] ${p.player_nickname}: ${playerCurrentAirport.city} → ${destination.city} (${playerSpaces.length}マス)`);
+                  return {
+                    ...p,
+                    route_spaces: playerSpaces,
+                    current_space_number: 0,
+                  };
+                }
               }
-              return p;
-            });
-            freemanPlayer = updatedPlayers.find((p: any) => p.id === freemanPlayer.id) || freemanPlayer;
-            return updatedPlayers;
+            } else {
+              // 目的地2以降の場合: フリーマンのみにルートを設定
+              if (p.id === freemanPlayer.id) {
+                const playerCurrentAirport = airports.find(a => a.id === p.current_airport_id);
+                if (playerCurrentAirport) {
+                  const playerSpaces = calculateRouteSpaces(playerCurrentAirport, destination);
+                  console.log(`[個別] ${p.player_nickname}: ${playerCurrentAirport.city} → ${destination.city} (${playerSpaces.length}マス)`);
+                  return {
+                    ...p,
+                    route_spaces: playerSpaces,
+                    current_space_number: 0,
+                  };
+                }
+              }
+            }
+            return p;
           });
-        }
+          freemanPlayer = updatedPlayers.find((p: any) => p.id === freemanPlayer.id) || freemanPlayer;
+          return updatedPlayers;
+        });
 
         // 発表画面が表示されるため、ここでは待機しない
         // 発表画面から続けるハンドラーでルーレット処理を開始する
@@ -1833,15 +2113,20 @@ function GameContent() {
     }
   }, [gameSession, currentTurnPlayer, screenState, players]);
 
-  // ゲーム終了チェック
+  // ゲーム終了チェック（いずれかのプレイヤーが最終目的地に到達したら終了）
   useEffect(() => {
-    // visitedAirportIdsには開始空港が含まれるため、-1して実際の訪問目的地数を計算
-    const visitedDestinationsCount = visitedAirportIds.length - 1;
-    if (visitedDestinationsCount >= maxDestinations && maxDestinations > 0) {
-      console.log('🎉 全ての目的地を訪問しました！');
-      setGameState('completed');
+    if (maxDestinations <= 0 || players.length === 0) return;
+
+    // 各プレイヤーの訪問履歴をチェック
+    for (const player of players) {
+      const visitedCount = player.visit_history?.length || 0;
+      if (visitedCount >= maxDestinations) {
+        console.log(`🎉 ${player.player_nickname} が${maxDestinations}か所の目的地を訪問完了！ゲーム終了`);
+        setGameState('completed');
+        break;
+      }
     }
-  }, [visitedAirportIds, maxDestinations]);
+  }, [players, maxDestinations]);
 
   // BGM管理 - 画面状態に応じてBGMを切り替え
   useEffect(() => {
@@ -2119,25 +2404,49 @@ function GameContent() {
                 {currentTurnPlayer && currentTurnPlayer.player_type === 'human' && (
                   <>
                     {/* 目的地未設定または到達済みの場合のみボタンを表示 */}
-                    {/* ただし、到達済みの場合は先行到着者のみが次の目的地を選択可能 */}
+                    {/* 目的地1のみ先着者が選択、目的地2以降は各自が選択 */}
                     {(() => {
                       // 目的地未設定の場合は常に選択可能
-                      if (!destinationAirport) {
+                      if (!currentTurnPlayer.route_spaces || currentTurnPlayer.route_spaces.length === 0) {
                         return true;
                       }
 
                       // 目的地到達済みの場合
-                      if (currentTurnPlayer.current_space_number >= (currentTurnPlayer.route_spaces?.length || 0)) {
-                        // 現在の目的地の選択状況を確認
-                        const currentDestSelections = destinationSelections[destinationAirport.id];
-                        if (!currentDestSelections || !currentDestSelections.arrivedPlayers) {
-                          // 選択状況がまだ記録されていない場合（到着処理前）は表示しない
-                          return false;
+                      if (currentTurnPlayer.current_space_number >= currentTurnPlayer.route_spaces.length) {
+                        const visitedCount = currentTurnPlayer.visit_history?.length || 0;
+
+                        // 目的地1（訪問履歴0）の場合は先着者のみが選択可能
+                        if (visitedCount === 0) {
+                          // プレイヤーのroute_spacesから実際の目的地を特定
+                          const finalRouteSpace = currentTurnPlayer.route_spaces[currentTurnPlayer.route_spaces.length - 1];
+                          const playerDestination = airports.reduce((nearest, airport) => {
+                            const distToCurrent = Math.sqrt(
+                              Math.pow(airport.latitude - finalRouteSpace.lat, 2) +
+                              Math.pow(airport.longitude - finalRouteSpace.lng, 2)
+                            );
+                            const distToNearest = Math.sqrt(
+                              Math.pow(nearest.latitude - finalRouteSpace.lat, 2) +
+                              Math.pow(nearest.longitude - finalRouteSpace.lng, 2)
+                            );
+                            return distToCurrent < distToNearest ? airport : nearest;
+                          }, airports[0]);
+
+                          // プレイヤーの実際の目的地の選択状況を確認
+                          const currentDestSelections = destinationSelections[playerDestination.id];
+                          if (!currentDestSelections || !currentDestSelections.arrivedPlayers || currentDestSelections.arrivedPlayers.length === 0) {
+                            // 選択状況がまだ記録されていない場合（到着処理前）は表示しない
+                            return false;
+                          }
+
+                          // 先着者（arrivedPlayersの最初）のみが次の目的地を選択可能
+                          const isFirstToArrive = currentDestSelections.arrivedPlayers[0] === currentTurnPlayer.id;
+                          console.log(`[目的地1選択] プレイヤー: ${currentTurnPlayer.player_nickname}, 目的地: ${playerDestination.city}, 先着者: ${isFirstToArrive}`);
+                          return isFirstToArrive;
                         }
 
-                        // 先行到着者（arrivedPlayersの最初）のみが次の目的地を選択可能
-                        const isFirstArrival = currentDestSelections.arrivedPlayers[0] === currentTurnPlayer.id;
-                        return isFirstArrival;
+                        // 目的地2以降（訪問履歴1以上）の場合は到着済みなら誰でも選択可能
+                        console.log(`[目的地${visitedCount + 1}選択] プレイヤー: ${currentTurnPlayer.player_nickname} - 到着済みのため選択可能`);
+                        return true;
                       }
 
                       return false;
@@ -2480,10 +2789,7 @@ function GameContent() {
           playerCards={currentTurnPlayer.cards}
           isMyTurn={currentTurnPlayer.player_type === 'human'}
           canUseCards={screenState === 'map'} // 地図画面でのみ使用可能
-          onUseCard={(cardId) => {
-            console.log('Card used:', cardId);
-            // TODO: カード使用ロジックを実装
-          }}
+          onUseCard={handleUseCard}
         />
       )}
 
@@ -2492,14 +2798,35 @@ function GameContent() {
         <MissionPanel playerMissions={currentTurnPlayer.missions} />
       )}
 
+      {/* カード対象選択 */}
+      {showCardTargetSelector && selectedCardToUse && (
+        <CardTargetSelector
+          players={players}
+          currentPlayerId={currentTurnPlayer?.id || ''}
+          onSelectTarget={(targetId) => executeCardOnPlayer(selectedCardToUse, targetId)}
+          onCancel={() => {
+            setShowCardTargetSelector(false);
+            setSelectedCardToUse(null);
+          }}
+        />
+      )}
+
+      {/* カード効果通知 */}
+      {showCardEffect && cardEffectMessage && (
+        <CardEffectNotification
+          message={cardEffectMessage}
+          onClose={handleCloseCardEffect}
+        />
+      )}
+
       {/* 到着ポイント内訳表示 */}
       {showArrivalBreakdown && arrivalBreakdown && (
         <ArrivalPointsBreakdown
           destinationName={destinationAirport?.city || destinationAirport?.name || '目的地'}
-          destinationNumber={visitedAirportIds.length - 1}
+          destinationNumber={arrivalBreakdown.destinationNumber || 1}
           breakdown={arrivalBreakdown}
           onContinue={handleArrivalBreakdownContinue}
-          playerName={currentTurnPlayer?.player_nickname || gameSession.player_nickname || 'プレイヤー'}
+          playerName={arrivalBreakdown.playerName || currentTurnPlayer?.player_nickname || gameSession?.player_nickname || 'プレイヤー'}
         />
       )}
 

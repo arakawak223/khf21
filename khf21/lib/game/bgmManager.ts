@@ -14,7 +14,6 @@ export type BGMScene =
   | 'attraction'      // 名所/星マス（明るく軽快）
   | 'calm'            // アート/グルメ/人マス（癒し）
   | 'trouble'         // トラブルマス（暗く重い）
-  | 'arrival'         // 目的地到着
   | 'ending';         // ゲーム終了/結果発表
 
 export interface BGMTrack {
@@ -134,16 +133,6 @@ const BGM_TRACKS: Record<BGMScene, BGMTrack> = {
     src: BGM_URLS.TROUBLE,
     volume: 0.6,
     loop: true,
-    fadeInDuration: 500,
-    fadeOutDuration: 1000,
-  },
-  arrival: {
-    scene: 'arrival',
-    name: '到着',
-    description: '達成感のあるメロディ',
-    src: FANFARE_TRACKS, // ランダム選曲
-    volume: 1.0, // 音量を最大に
-    loop: false,
     fadeInDuration: 500,
     fadeOutDuration: 1000,
   },
@@ -334,6 +323,14 @@ class BGMManager {
       this.currentAudio = null;
     }
 
+    // 効果音（ファンファーレなど）も停止
+    if (this.sfxAudio) {
+      this.sfxAudio.pause();
+      this.sfxAudio.currentTime = 0;
+      this.sfxAudio = null;
+      console.log('[BGMManager] Stopped SFX audio');
+    }
+
     this.currentScene = null;
   }
 
@@ -487,22 +484,63 @@ class BGMManager {
 
   /**
    * ファンファーレ効果音を再生
+   * @param isHumanPlayer - 人間プレイヤーの場合はtrue、フリーマンの場合はfalse
    */
-  public async playFanfare(): Promise<void> {
+  public async playFanfare(isHumanPlayer: boolean = true): Promise<void> {
     // ミュート中は再生しない
     if (this.isMuted) {
       console.log('[Fanfare] Muted - not playing');
       return;
     }
 
-    console.log('[Fanfare] Playing fanfare from audio file');
+    // フリーマンの場合は古いファンファーレ（Web Audio API）を使用
+    if (!isHumanPlayer) {
+      console.log('[Fanfare] Playing fallback fanfare for Freeman');
+
+      // 既存のBGMを即座に停止
+      if (this.currentAudio) {
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+        this.currentAudio = null;
+        this.currentScene = null;
+      }
+
+      if (this.useToneGenerator) {
+        this.toneGenerator.stop();
+        this.toneGenerator.stopEngineSound();
+        this.useToneGenerator = false;
+      }
+
+      if (this.sfxAudio) {
+        this.sfxAudio.pause();
+        this.sfxAudio.currentTime = 0;
+        this.sfxAudio = null;
+      }
+
+      this.playFanfareFallback();
+      // フォールバックは短いので少し待機
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return;
+    }
+
+    // 人間プレイヤーの場合は新しいBGM（MP3ファイル）を使用
+    console.log('[Fanfare] Playing fanfare from audio file for human player');
 
     try {
-      // 既存のBGMを一時停止（ファンファーレが聞こえやすくする）
-      const previousVolume = this.currentAudio ? this.currentAudio.volume : 0;
+      // 既存のBGMを即座に停止（フェードアウトなし）
       if (this.currentAudio) {
-        console.log('[Fanfare] Lowering BGM volume for fanfare');
-        this.currentAudio.volume = previousVolume * 0.2; // BGMを20%に下げる
+        console.log('[Fanfare] Stopping current BGM immediately for fanfare');
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+        this.currentAudio = null;
+        this.currentScene = null;
+      }
+
+      // ToneGeneratorも停止
+      if (this.useToneGenerator) {
+        this.toneGenerator.stop();
+        this.toneGenerator.stopEngineSound();
+        this.useToneGenerator = false;
       }
 
       // 既存の効果音を停止
@@ -529,39 +567,25 @@ class BGMManager {
       };
 
       await fanfareAudio.play();
+      console.log('[Fanfare] Fanfare started playing');
 
       // 効果音が終わるまで待つ（最大30秒）
       await new Promise(resolve => {
         fanfareAudio.onended = () => {
           this.sfxAudio = null;
-          // BGMの音量を戻す
-          if (this.currentAudio && this.currentScene) {
-            const track = BGM_TRACKS[this.currentScene];
-            this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
-            console.log('[Fanfare] Restored BGM volume');
-          }
+          console.log('[Fanfare] Fanfare ended');
           resolve(undefined);
         };
         // タイムアウトも設定（念のため、最大30秒）
         setTimeout(() => {
           this.sfxAudio = null;
-          // BGMの音量を戻す
-          if (this.currentAudio && this.currentScene) {
-            const track = BGM_TRACKS[this.currentScene];
-            this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
-            console.log('[Fanfare] Restored BGM volume (timeout)');
-          }
+          console.log('[Fanfare] Fanfare timeout');
           resolve(undefined);
         }, 30000);
       });
     } catch (error) {
       console.warn('Failed to play fanfare, using fallback:', error);
       this.sfxAudio = null;
-      // エラー時もBGMの音量を戻す
-      if (this.currentAudio && this.currentScene) {
-        const track = BGM_TRACKS[this.currentScene];
-        this.currentAudio.volume = this.isMuted ? 0 : this.volume * track.volume;
-      }
       this.playFanfareFallback();
     }
   }
@@ -638,7 +662,7 @@ export const SCREEN_BGM_MAP: Record<string, BGMScene | 'none'> = {
   destination_roulette: 'roulette', // 目的地ルーレット
   movement_roulette: 'dice_wait',   // 移動ルーレット
   movement: 'flying',               // 移動中（飛行中）
-  arrival_selection: 'arrival',     // 目的地到着
+  arrival_selection: 'none',        // 目的地到着（playFanfare()で再生）
   events: 'none',                   // イベント画面（EVENT_BGM_MAPで処理）
   completed: 'ending',              // ゲーム終了
 };

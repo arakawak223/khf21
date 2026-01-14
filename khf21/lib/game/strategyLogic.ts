@@ -118,10 +118,10 @@ export function incrementMissionProgressByType(
 }
 
 // ===============================
-// 先行到着ボーナス・占有システム
+// 先着ボーナス・占有システム
 // ===============================
 
-// 先行到着ボーナスを計算
+// 先着ボーナスを計算
 export function calculateArrivalBonus(
   cityId: string,
   distance: number,
@@ -130,15 +130,15 @@ export function calculateArrivalBonus(
 ): {
   bonus: number;
   rank: number;
-  isFirstArrival: boolean;
+  isFirstArrival: boolean; // 後方互換性のため残す（非推奨）
   tollFee: number;
 } {
   const occupation = occupations.get(cityId);
 
   if (!occupation) {
-    // 初到着
+    // 先着
     const baseBonus = Math.floor(distance / 100); // 距離に応じた基本ボーナス（調整済み）
-    const firstArrivalBonus = 100; // 初到着ボーナス（調整済み）
+    const firstArrivalBonus = 100; // 先着ボーナス（調整済み）
     return {
       bonus: baseBonus + firstArrivalBonus,
       rank: 1,

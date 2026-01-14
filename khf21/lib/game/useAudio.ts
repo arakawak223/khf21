@@ -38,9 +38,9 @@ export function useAudio() {
     await manager.playDiceSteps(count);
   }, []);
 
-  const playFanfare = useCallback(async () => {
+  const playFanfare = useCallback(async (isHumanPlayer: boolean = true) => {
     const manager = getBGMManager();
-    await manager.playFanfare();
+    await manager.playFanfare(isHumanPlayer);
   }, []);
 
   const setVolume = useCallback((vol: number) => {

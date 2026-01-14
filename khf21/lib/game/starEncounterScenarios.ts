@@ -91,6 +91,18 @@ const hotelScenarios: string[] = [
   'ホテルのプールサイドで{name}がリラックスしています。',
   'ホテルのコンシェルジュデスクで{name}が相談しています。',
   'ホテルのスパで{name}がマッサージを待っています。',
+  'ホテルのルーフトップバーで{name}が夜景を眺めています。',
+  'ホテルのビジネスセンターで{name}が仕事をしています。',
+  'ホテルの図書室で{name}が読書を楽しんでいます。',
+  'ホテルのテラスで{name}がティータイムを過ごしています。',
+  'ホテルの廊下で{name}とすれ違いました。',
+  'ホテルのルームサービスを注文していたら、{name}も同じタイミングで注文していました。',
+  'ホテルのラウンジで{name}が待ち合わせをしています。',
+  'ホテルのベルデスクで{name}が荷物を預けています。',
+  'ホテルのギフトショップで{name}がお土産を選んでいます。',
+  'ホテルのサウナで{name}とリラックスしています。',
+  'ホテルの庭園を散歩していたら、{name}も散策していました。',
+  'ホテルのカフェで{name}がコーヒーを飲んでいます。',
 ];
 
 /**
@@ -104,6 +116,19 @@ const restaurantScenarios: string[] = [
   'レストランのテラス席で{name}が夜景を楽しんでいます。',
   'レストランのシェフズテーブルで{name}と相席になりました。',
   'レストランのトイレで{name}とすれ違いました。',
+  '人気レストランの予約待ちで{name}と一緒に待っています。',
+  'レストランのオープンキッチンで、{name}がシェフと会話しています。',
+  'レストランの個室エリアで、{name}が食事をしているのを見かけました。',
+  'レストランのソムリエが{name}にワインをお勧めしています。',
+  'レストランの回転ドアを通ったら、{name}と鉢合わせしました。',
+  'レストランのコートチェックで{name}がコートを預けていました。',
+  'レストランのデザートワゴンを見ていたら、{name}も選んでいました。',
+  '満席のレストランで、{name}がちょうど席を立つところでした。',
+  'レストランのパティオで{name}が友人と談笑しています。',
+  'レストランのシガーラウンジで{name}を見かけました。',
+  'レストランの特別試食会で{name}と同じテーブルになりました。',
+  'レストランの料理教室イベントで{name}が参加していました。',
+  'ミシュラン星付きレストランのカウンター席で{name}が隣に座りました。',
 ];
 
 /**
@@ -255,8 +280,21 @@ export function getFlightStarEncounter(starName: string, starNameJa: string): St
  * 到着時（空港ラウンジ）での著名人との出会いシチュエーションを取得
  */
 export function getArrivalStarEncounter(starName: string, starNameJa: string): StarEncounterScenario {
-  // 到着時は空港ラウンジかゲートのどちらか
-  const location = Math.random() < 0.7 ? 'airport_lounge' : 'airport_gate';
+  // 到着時は空港ラウンジ、ゲート、ホテル、レストランのいずれか
+  // よりバラエティに富んだシチュエーションを提供
+  const rand = Math.random();
+  let location: EncounterLocation;
+
+  if (rand < 0.25) {
+    location = 'airport_lounge';  // 25% - 空港ラウンジ
+  } else if (rand < 0.45) {
+    location = 'airport_gate';    // 20% - 搭乗ゲート
+  } else if (rand < 0.70) {
+    location = 'hotel';            // 25% - ホテル
+  } else {
+    location = 'restaurant';       // 30% - レストラン
+  }
+
   return getStarEncounterScenario(location, starName, starNameJa);
 }
 

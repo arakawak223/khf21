@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 
 interface PointBreakdown {
   arrivalBonus: number;
-  isFirstArrival: boolean;
+  isFirstToArrive: boolean;
   attractionPoints?: number;
   artPoints?: number;
   gourmetPoints?: number;
@@ -76,13 +76,13 @@ export default function ArrivalPointsBreakdown({
             <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
               <div className="flex items-center gap-3">
                 <div className="text-3xl">
-                  {breakdown.isFirstArrival ? '🥇' : '✈️'}
+                  {breakdown.isFirstToArrive ? '🥇' : '✈️'}
                 </div>
                 <div>
                   <div className="font-bold text-gray-800">
-                    {breakdown.isFirstArrival ? '初到着ボーナス' : '到着ポイント'}
+                    {breakdown.isFirstToArrive ? '先着ボーナス' : '到着ポイント'}
                   </div>
-                  {breakdown.isFirstArrival && (
+                  {breakdown.isFirstToArrive && (
                     <div className="text-xs text-gray-600">
                       この都市に一番乗り！
                     </div>

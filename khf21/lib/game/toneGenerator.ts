@@ -83,15 +83,6 @@ const MELODIES: Record<string, MelodyPattern> = {
     hasRhythm: true,
   },
 
-  // 目的地到着 - 華やかで元気なファンファーレ
-  arrival: {
-    notes: ['C5', 'C5', 'G4', 'G4', 'C5', 'E5', 'G5', 'C5', 'E5', 'G5', 'E5', 'C5', 'G5', 'C5', 'C5', 'C5'],
-    durations: [0.15, 0.15, 0.15, 0.15, 0.3, 0.3, 0.6, 0.15, 0.15, 0.3, 0.15, 0.15, 0.6, 0.2, 0.2, 0.8],
-    tempo: 140,
-    waveType: 'sine',
-    hasRhythm: true,
-  },
-
   // ゲーム終了 - 華やかなエンディング
   ending: {
     notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'F5', 'G5'],
@@ -438,75 +429,71 @@ export class DiceSoundGenerator {
 
   /**
    * 音声ファイルを使用してステップ音を再生
-   * マス数に応じて「カチッ」音を繰り返し再生
+   * マス数に関係なく、飛行機通過音を最初から最後まで（約6秒間）フル再生
    */
-  private async playAudioFileSteps(count: number): Promise<void> {
+  private async playAudioFileSteps(_count: number): Promise<void> {
     if (!this.audioBuffer) return;
 
     // ミュート中は再生しない
     if (this.isMuted) {
-      console.log('[DiceSoundGenerator] Muted - not playing click sound');
+      console.log('[DiceSoundGenerator] Muted - not playing airplane sound');
       return;
     }
 
-    // 音声ファイルから短いクリック音を作成（最初の0.1秒を使用）
-    const clickDuration = 0.1; // 100ms
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.audioBuffer;
 
-    for (let i = 0; i < count; i++) {
-      const source = this.ctx.createBufferSource();
-      source.buffer = this.audioBuffer;
+    const gain = this.ctx.createGain();
+    gain.gain.value = this.volume; // 音量調整
 
-      const gain = this.ctx.createGain();
-      gain.gain.value = this.volume * 0.5; // クリック音は控えめに
+    source.connect(gain);
+    gain.connect(this.ctx.destination);
 
-      source.connect(gain);
-      gain.connect(this.ctx.destination);
+    // 音声ファイル全体を再生（最初から最後まで）
+    source.start(0);
 
-      // 音声の最初の0.1秒だけを再生
-      const now = this.ctx.currentTime;
-      source.start(now, 0, clickDuration);
-
-      // 次のクリックまで待機（200ms間隔）
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-
-    console.log(`[DiceSoundGenerator] Played ${count} click sounds at volume ${this.volume * 0.5}`);
+    // 音声の長さ分待機（音声ファイルの実際の長さで自動調整）
+    const duration = this.audioBuffer.duration;
+    console.log(`[DiceSoundGenerator] Playing airplane sound for ${duration} seconds at volume ${this.volume}`);
+    await new Promise(resolve => setTimeout(resolve, duration * 1000));
   }
 
   /**
-   * フォールバック: クリック音を生成してステップ音を再生
+   * フォールバック: 音階を使用してステップ音を再生
    */
   private async playToneSteps(count: number): Promise<void> {
     // ミュート中は再生しない
     if (this.isMuted) {
-      console.log('[DiceSoundGenerator] Muted - not playing click steps');
+      console.log('[DiceSoundGenerator] Muted - not playing tone steps');
       return;
     }
 
+    const notes = [
+      NOTES.C5, NOTES.D5, NOTES.E5, NOTES.F5,
+      NOTES.G5, NOTES.A5, NOTES.B5, NOTES.C5,
+    ];
+
     for (let i = 0; i < count; i++) {
-      // クリック音を生成（短い高周波数のトーン）
+      const frequency = notes[i % notes.length];
+
       const osc = this.ctx.createOscillator();
       osc.type = 'sine';
-      osc.frequency.value = 1200; // 高めの周波数でクリック感を出す
+      osc.frequency.value = frequency;
 
       const gain = this.ctx.createGain();
-      const now = this.ctx.currentTime;
-
-      // 短く鋭いクリック音
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(this.volume * 0.5, now + 0.005);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+      gain.gain.setValueAtTime(0, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(this.volume * 0.3, this.ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
-      osc.start(now);
-      osc.stop(now + 0.05);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.15);
 
-      // 次のクリックまで待機（200ms間隔）
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 180));
     }
 
-    console.log(`[DiceSoundGenerator] Played ${count} click tones at volume ${this.volume * 0.5}`);
+    console.log(`[DiceSoundGenerator] Played ${count} tone steps at volume ${this.volume * 0.3}`);
   }
 }

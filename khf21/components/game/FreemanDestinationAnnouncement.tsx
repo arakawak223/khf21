@@ -47,9 +47,6 @@ export default function FreemanDestinationAnnouncement({
             <h2 className="text-3xl font-bold text-gray-800 mb-2">
               {freemanName}が目的地を決定！
             </h2>
-            <div className="text-lg text-gray-600">
-              次の共通目的地が決まりました
-            </div>
           </div>
 
           {/* 目的地表示 */}
@@ -81,9 +78,8 @@ export default function FreemanDestinationAnnouncement({
 
           {/* 説明 */}
           <div className="text-gray-600">
-            <p>全プレイヤーの次の目的地が決定しました。</p>
             <p className="font-bold text-orange-600 mt-2">
-              🎯 この目的地を目指してください！
+              🎯 {freemanName}の次の目的地が決定しました！
             </p>
           </div>
 
