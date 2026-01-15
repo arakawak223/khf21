@@ -1199,6 +1199,38 @@ function GameContent() {
       }
     }
 
+    // トラブルイベントの場合: 重大性に応じてマス後退
+    if (currentEvent.type === 'trouble' && currentTurnPlayer) {
+      const trouble = currentEvent.data as Trouble;
+      const retreatSpaces = trouble.severity; // severity 1-5 に応じて 1-5マス後退
+
+      setPlayers((prevPlayers) => {
+        const updatedPlayers = prevPlayers.map((p) => {
+          if (p.id === currentTurnPlayer.id) {
+            // 現在のマス位置から後退（0未満にはならない）
+            const newSpaceNumber = Math.max(0, p.current_space_number - retreatSpaces);
+            console.log(`[トラブル後退] ${p.player_nickname}: マス${p.current_space_number} → マス${newSpaceNumber} (${retreatSpaces}マス後退, 重大度: ${trouble.severity})`);
+
+            return {
+              ...p,
+              current_space_number: newSpaceNumber,
+            };
+          }
+          return p;
+        });
+
+        // currentTurnPlayerも更新
+        const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
+        if (updatedCurrentPlayer) {
+          setCurrentTurnPlayer(updatedCurrentPlayer);
+          // グローバル状態も更新
+          setCurrentSpaceNumber(updatedCurrentPlayer.current_space_number);
+        }
+
+        return updatedPlayers;
+      });
+    }
+
     // ポイント計算
     let giverPoints = 0;
     if (currentEvent.type === 'giver') {

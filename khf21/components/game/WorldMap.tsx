@@ -291,13 +291,21 @@ export default function WorldMap({
     const centerLat = (minLat + maxLat) / 2;
     const centerLng = (minLng + maxLng) / 2;
 
-    // 範囲を計算（少し余白を持たせる）
-    const latDiff = Math.abs(maxLat - minLat) * 1.2; // 20%の余白
-    const lngDiff = Math.abs(maxLng - minLng) * 1.2; // 20%の余白
+    // 範囲を計算（十分な余白を持たせる）
+    const latDiff = Math.abs(maxLat - minLat) * 1.6; // 60%の余白
+
+    // 経度差を計算（180度をまたぐケースも考慮）
+    let lngDiff = Math.abs(maxLng - minLng);
+    // 180度をまたぐ場合は、逆回りの差分を使う
+    if (lngDiff > 180) {
+      lngDiff = 360 - lngDiff;
+    }
+    lngDiff = lngDiff * 1.6; // 60%の余白
+
     const maxDiff = Math.max(latDiff, lngDiff);
 
     // 距離に応じてズームレベルを調整（より広い範囲に対応）
-    let zoom = 3; // デフォルト（より引いた視点）
+    let zoom = 2; // デフォルト（より引いた視点）
     if (maxDiff < 0.5) zoom = 10;       // ~55km: 非常に近い
     else if (maxDiff < 1) zoom = 9;     // ~111km: とても近い
     else if (maxDiff < 2) zoom = 8;     // ~222km: 近い
@@ -307,7 +315,8 @@ export default function WorldMap({
     else if (maxDiff < 20) zoom = 4;    // ~2220km: やや長距離
     else if (maxDiff < 40) zoom = 3;    // ~4440km: 長距離
     else if (maxDiff < 80) zoom = 2;    // ~8880km: 超長距離
-    else zoom = 2;                      // それ以上（最小ズーム）
+    else if (maxDiff < 160) zoom = 1;   // ~17760km: 極長距離
+    else zoom = 1;                      // それ以上（最小ズーム）
 
     return { center: [centerLat, centerLng] as [number, number], zoom };
   }, [currentLat, currentLng, destinationAirport, players]);
@@ -404,7 +413,7 @@ export default function WorldMap({
         center={mapCenterAndZoom.center}
         zoom={mapCenterAndZoom.zoom}
         key={`map-${destinationAirport?.id || 'none'}`}
-        minZoom={2}
+        minZoom={1}
         maxZoom={10}
         style={{ height: "100%", width: "100%" }}
         worldCopyJump={true}

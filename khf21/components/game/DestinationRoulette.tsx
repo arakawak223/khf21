@@ -75,7 +75,7 @@ export default function DestinationRoulette({
   const currentAirport = availableAirports[currentIndex];
 
   return (
-    <div className="w-full max-w-3xl mx-auto" style={{ perspective: '1200px' }}>
+    <div className="w-full max-w-2xl mx-auto" style={{ perspective: '1200px' }}>
       <style jsx>{`
         @keyframes slot-flash {
           0%, 100% {
@@ -104,7 +104,7 @@ export default function DestinationRoulette({
       <div className="relative">
         {/* スロットマシン風外枠 */}
         <div
-          className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl p-8 shadow-2xl"
+          className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-5 shadow-2xl"
           style={{
             transform: 'rotateX(5deg)',
             transformStyle: 'preserve-3d',
@@ -112,25 +112,25 @@ export default function DestinationRoulette({
           }}
         >
           {/* トップネオンサイン */}
-          <div className="text-center mb-6">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-3">
-              <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-bold">
+          <div className="text-center mb-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-2">
+              <div className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold">
                 🎯 次の目的地: 目的地{destinationNumber}
               </div>
               {groupInfo && (
-                <div className={`inline-block bg-gradient-to-r ${groupInfo.colorClass} text-white px-4 py-2 rounded-full text-sm font-bold`}>
+                <div className={`inline-block bg-gradient-to-r ${groupInfo.colorClass} text-white px-3 py-1 rounded-full text-xs font-bold`}>
                   {groupInfo.emoji} {groupInfo.name} Group
                 </div>
               )}
             </div>
-            <h2 className="text-4xl font-bold text-white neon-text mb-2">
+            <h2 className="text-2xl font-bold text-white neon-text mb-1">
               ✈️ DESTINATION ROULETTE
             </h2>
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-1.5">
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
-                  className={`w-3 h-3 rounded-full ${
+                  className={`w-2 h-2 rounded-full ${
                     isSpinning
                       ? 'bg-red-500 animate-pulse'
                       : selectedAirport
@@ -143,14 +143,14 @@ export default function DestinationRoulette({
           </div>
 
           {/* スロット表示部 - 3Dボックス */}
-          <div className="relative mb-6">
+          <div className="relative mb-4">
             {/* 外側のゴールドフレーム */}
-            <div className="absolute -inset-3 bg-gradient-to-br from-yellow-600 via-amber-500 to-yellow-700 rounded-2xl opacity-80 blur-sm"></div>
-            <div className="absolute -inset-2 bg-gradient-to-br from-yellow-700 via-amber-600 to-yellow-800 rounded-2xl shadow-xl"></div>
+            <div className="absolute -inset-2 bg-gradient-to-br from-yellow-600 via-amber-500 to-yellow-700 rounded-xl opacity-80 blur-sm"></div>
+            <div className="absolute -inset-1 bg-gradient-to-br from-yellow-700 via-amber-600 to-yellow-800 rounded-xl shadow-xl"></div>
 
             {/* メイン表示ボックス */}
             <div
-              className={`relative bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-xl p-10 border-4 ${
+              className={`relative bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-lg p-6 border-3 ${
                 selectedAirport
                   ? 'border-green-400 slot-machine-glow'
                   : isSpinning
@@ -160,19 +160,19 @@ export default function DestinationRoulette({
               style={{
                 transform: 'translateZ(20px)',
                 boxShadow: 'inset 0 4px 20px rgba(0, 0, 0, 0.8)',
-                minHeight: '280px',
+                minHeight: '200px',
               }}
             >
               {/* トップの矢印 */}
-              <div className="absolute -top-10 left-1/2 transform -translate-x-1/2">
-                <div className="w-0 h-0 border-l-[20px] border-r-[20px] border-t-[28px] border-l-transparent border-r-transparent border-t-yellow-500 shadow-lg"></div>
+              <div className="absolute -top-7 left-1/2 transform -translate-x-1/2">
+                <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-t-[20px] border-l-transparent border-r-transparent border-t-yellow-500 shadow-lg"></div>
               </div>
 
               {currentAirport && (
-                <div className="text-center space-y-5">
+                <div className="text-center space-y-3">
                   {/* アイコン - 3Dエフェクト付き */}
                   <div
-                    className={`text-8xl ${isSpinning ? 'animate-bounce' : selectedAirport ? 'animate-pulse' : ''}`}
+                    className={`text-5xl ${isSpinning ? 'animate-bounce' : selectedAirport ? 'animate-pulse' : ''}`}
                     style={{
                       filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5))',
                       transform: 'translateZ(30px)',
@@ -184,7 +184,7 @@ export default function DestinationRoulette({
                   {/* 都市名 */}
                   <div>
                     <h3
-                      className={`text-3xl sm:text-5xl font-bold mb-3 break-words px-2 ${
+                      className={`text-2xl sm:text-3xl font-bold mb-2 break-words px-2 ${
                         selectedAirport
                           ? 'text-green-400 neon-text'
                           : 'text-white'
@@ -199,14 +199,14 @@ export default function DestinationRoulette({
                     >
                       {currentAirport.city}
                     </h3>
-                    <p className="text-lg sm:text-xl text-gray-300 mb-2 break-words px-2">
+                    <p className="text-sm sm:text-base text-gray-300 mb-1.5 break-words px-2">
                       {currentAirport.name_ja || currentAirport.name}
                     </p>
-                    <div className="flex justify-center items-center gap-3 text-sm">
-                      <span className="px-3 py-1 rounded-full bg-blue-600/50 text-blue-200 font-semibold">
+                    <div className="flex justify-center items-center gap-2 text-xs">
+                      <span className="px-2 py-0.5 rounded-full bg-blue-600/50 text-blue-200 font-semibold">
                         {currentAirport.country}
                       </span>
-                      <span className="px-3 py-1 rounded-full bg-purple-600/50 text-purple-200 font-semibold">
+                      <span className="px-2 py-0.5 rounded-full bg-purple-600/50 text-purple-200 font-semibold">
                         {currentAirport.code}
                       </span>
                     </div>
@@ -225,9 +225,9 @@ export default function DestinationRoulette({
           </div>
 
           {/* ステータス表示 */}
-          <div className="text-center mb-6">
-            <div className="inline-block px-6 py-3 rounded-full bg-black/50 border-2 border-gray-700">
-              <p className="text-lg font-bold text-white">
+          <div className="text-center mb-4">
+            <div className="inline-block px-4 py-2 rounded-full bg-black/50 border border-gray-700">
+              <p className="text-sm font-bold text-white">
                 {selectedAirport
                   ? '🎉 目的地が決まりました！'
                   : isSpinning
@@ -238,7 +238,7 @@ export default function DestinationRoulette({
           </div>
 
           {/* ボタンエリア */}
-          <div className="flex gap-4 relative z-50">
+          <div className="flex gap-3 relative z-50">
             {!selectedAirport ? (
               <Button
                 onClick={(e) => {
@@ -250,7 +250,7 @@ export default function DestinationRoulette({
                 disabled={isSpinning}
                 size="lg"
                 type="button"
-                className="w-full touch-target text-2xl font-bold py-8 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20 relative z-50"
+                className="w-full touch-target text-lg font-bold py-5 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20 relative z-50"
                 style={{
                   boxShadow: '0 10px 40px rgba(147, 51, 234, 0.5)',
                 }}
@@ -267,7 +267,7 @@ export default function DestinationRoulette({
                 }}
                 size="lg"
                 type="button"
-                className="w-full touch-target text-2xl font-bold py-8 bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-700 hover:via-green-700 hover:to-teal-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20 relative z-50"
+                className="w-full touch-target text-lg font-bold py-5 bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-700 hover:via-green-700 hover:to-teal-700 shadow-2xl transform transition-transform hover:scale-105 active:scale-95 border-2 border-white/20 relative z-50"
                 style={{
                   boxShadow: '0 10px 40px rgba(16, 185, 129, 0.5)',
                 }}
@@ -279,21 +279,21 @@ export default function DestinationRoulette({
 
           {/* 下部情報 */}
           {!isSpinning && !selectedAirport && (
-            <div className="text-center mt-4">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-800/50 border border-gray-700">
-                <span className="text-yellow-400 text-sm font-semibold">🌐 候補空港:</span>
-                <span className="text-white text-sm font-bold">{availableAirports.length}</span>
+            <div className="text-center mt-3">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-800/50 border border-gray-700">
+                <span className="text-yellow-400 text-xs font-semibold">🌐 候補空港:</span>
+                <span className="text-white text-xs font-bold">{availableAirports.length}</span>
               </div>
             </div>
           )}
 
           {/* サイドのネオンライン装飾 */}
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-32 bg-gradient-to-b from-blue-500 via-purple-500 to-pink-500 rounded-r-full opacity-60"></div>
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-32 bg-gradient-to-b from-pink-500 via-purple-500 to-blue-500 rounded-l-full opacity-60"></div>
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-24 bg-gradient-to-b from-blue-500 via-purple-500 to-pink-500 rounded-r-full opacity-60"></div>
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-24 bg-gradient-to-b from-pink-500 via-purple-500 to-blue-500 rounded-l-full opacity-60"></div>
         </div>
 
         {/* 下部の影 */}
-        <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 w-4/5 h-8 bg-black/40 blur-2xl rounded-full"></div>
+        <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 w-4/5 h-6 bg-black/40 blur-2xl rounded-full"></div>
       </div>
     </div>
   );

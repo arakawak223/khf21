@@ -25,8 +25,8 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
   const autoPlayExecutedRef = useRef(false); // autoPlay実行済みフラグ
   const isSpinningRef = useRef(false); // isSpinningの同期的な追跡用
 
-  const numbers = Array.from({ length: maxNumber }, (_, i) => i + 1); // 1からmaxNumberまで
-  const anglePerNumber = 360 / maxNumber; // 均等に配置
+  const numbers = Array.from({ length: maxNumber + 1 }, (_, i) => i); // 0からmaxNumberまで
+  const anglePerNumber = 360 / (maxNumber + 1); // 均等に配置
 
   const handleStart = (e?: React.MouseEvent) => {
     if (e) {
@@ -405,7 +405,7 @@ export default function Dice3D({ onRollComplete, disabled = false, autoPlay = fa
             {/* 数字を円周上に配置 */}
             {numbers.map((num, index) => {
               const angle = index * anglePerNumber;
-              // 12個の数字の場合はサイズを小さく
+              // 13個以上の数字の場合はサイズを小さく
               const numberSize = maxNumber > 6 ? 45 : 60;
               const numberRadius = maxNumber > 6 ? 110 : 105;
               const fontSize = maxNumber > 6 ? 'text-2xl' : 'text-3xl';

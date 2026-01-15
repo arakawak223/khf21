@@ -161,6 +161,9 @@ export default function TroubleEvent({
           <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-xs font-semibold">
             危険度: {'⭐'.repeat(trouble.severity)}
           </span>
+          <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-xs font-semibold">
+            {trouble.severity}マス後退
+          </span>
         </div>
 
         {/* トラブル説明 */}
@@ -180,6 +183,7 @@ export default function TroubleEvent({
               ` このトラブルにより、${Math.abs(
                 trouble.impressed_points_loss
               )}ポイントを失いました。`}
+            {` さらに、${trouble.severity}マス後退してしまいます。`}
           </p>
         </div>
 
