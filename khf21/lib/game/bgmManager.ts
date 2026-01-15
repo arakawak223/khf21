@@ -484,47 +484,17 @@ class BGMManager {
 
   /**
    * ファンファーレ効果音を再生
-   * @param isHumanPlayer - 人間プレイヤーの場合はtrue、フリーマンの場合はfalse
+   * @param _isHumanPlayer - 互換性のために残されているパラメータ（現在は未使用、すべて新しいファンファーレを使用）
    */
-  public async playFanfare(isHumanPlayer: boolean = true): Promise<void> {
+  public async playFanfare(_isHumanPlayer: boolean = true): Promise<void> {
     // ミュート中は再生しない
     if (this.isMuted) {
       console.log('[Fanfare] Muted - not playing');
       return;
     }
 
-    // フリーマンの場合は古いファンファーレ（Web Audio API）を使用
-    if (!isHumanPlayer) {
-      console.log('[Fanfare] Playing fallback fanfare for Freeman');
-
-      // 既存のBGMを即座に停止
-      if (this.currentAudio) {
-        this.currentAudio.pause();
-        this.currentAudio.currentTime = 0;
-        this.currentAudio = null;
-        this.currentScene = null;
-      }
-
-      if (this.useToneGenerator) {
-        this.toneGenerator.stop();
-        this.toneGenerator.stopEngineSound();
-        this.useToneGenerator = false;
-      }
-
-      if (this.sfxAudio) {
-        this.sfxAudio.pause();
-        this.sfxAudio.currentTime = 0;
-        this.sfxAudio = null;
-      }
-
-      this.playFanfareFallback();
-      // フォールバックは短いので少し待機
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      return;
-    }
-
-    // 人間プレイヤーの場合は新しいBGM（MP3ファイル）を使用
-    console.log('[Fanfare] Playing fanfare from audio file for human player');
+    // すべてのプレイヤーに新しいBGM（MP3ファイル）を使用
+    console.log('[Fanfare] Playing fanfare from audio file');
 
     try {
       // 既存のBGMを即座に停止（フェードアウトなし）

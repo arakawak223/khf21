@@ -253,40 +253,64 @@ export default function WorldMap({
   }, [currentAirport, currentLat, currentLng, destinationAirport, showRoute, routeSpaces, currentSpace, playerPosition]);
 
 
-  // マップの中心とズームを計算（経路全体が表示されるように）
+  // マップの中心とズームを計算（全プレイヤーの経路全体が表示されるように）
   const mapCenterAndZoom = useMemo(() => {
-    if (destinationAirport && showRoute) {
-      const destLat = getCoordinate(destinationAirport.latitude);
-      const destLng = getCoordinate(destinationAirport.longitude);
+    // 全プレイヤーの位置を収集
+    const allLats: number[] = [];
+    const allLngs: number[] = [];
 
-      // 経路の中心点を計算
-      const centerLat = (currentLat + destLat) / 2;
-      const centerLng = (currentLng + destLng) / 2;
-
-      // 距離に応じてズームレベルを調整
-      const latDiff = Math.abs(currentLat - destLat);
-      const lngDiff = Math.abs(currentLng - destLng);
-      const maxDiff = Math.max(latDiff, lngDiff);
-
-      let zoom = 5; // デフォルト
-      // 短距離の場合により細かくズームイン
-      if (maxDiff < 0.5) zoom = 10;       // ~55km: 非常に近い
-      else if (maxDiff < 1) zoom = 9;     // ~111km: とても近い
-      else if (maxDiff < 2) zoom = 8;     // ~222km: 近い
-      else if (maxDiff < 3) zoom = 7;     // ~333km: やや近い
-      else if (maxDiff < 5) zoom = 7;     // ~555km: 中近距離
-      else if (maxDiff < 8) zoom = 7;     // ~888km: 中距離
-      else if (maxDiff < 15) zoom = 5;    // ~1665km: やや長距離
-      else if (maxDiff < 25) zoom = 4;    // ~2775km: 長距離
-      else if (maxDiff < 40) zoom = 3;    // ~4440km: 超長距離
-      else zoom = 2;                      // それ以上
-
-      return { center: [centerLat, centerLng] as [number, number], zoom };
+    // 全プレイヤーのルートから座標を取得
+    if (players && players.length > 0) {
+      players.forEach((player) => {
+        if (player.route_spaces && player.route_spaces.length > 0) {
+          player.route_spaces.forEach((space) => {
+            allLats.push(space.lat);
+            allLngs.push(space.lng);
+          });
+        }
+      });
     }
 
-    // 目的地がない場合は現在地中心
-    return { center: [currentLat, currentLng] as [number, number], zoom: 4 };
-  }, [currentLat, currentLng, destinationAirport, showRoute]);
+    // フォールバック：プレイヤーがいない場合は従来の計算
+    if (allLats.length === 0) {
+      allLats.push(currentLat);
+      allLngs.push(currentLng);
+      if (destinationAirport) {
+        allLats.push(getCoordinate(destinationAirport.latitude));
+        allLngs.push(getCoordinate(destinationAirport.longitude));
+      }
+    }
+
+    // バウンディングボックスを計算
+    const minLat = Math.min(...allLats);
+    const maxLat = Math.max(...allLats);
+    const minLng = Math.min(...allLngs);
+    const maxLng = Math.max(...allLngs);
+
+    // 中心点を計算
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+
+    // 範囲を計算（少し余白を持たせる）
+    const latDiff = Math.abs(maxLat - minLat) * 1.2; // 20%の余白
+    const lngDiff = Math.abs(maxLng - minLng) * 1.2; // 20%の余白
+    const maxDiff = Math.max(latDiff, lngDiff);
+
+    // 距離に応じてズームレベルを調整（より広い範囲に対応）
+    let zoom = 3; // デフォルト（より引いた視点）
+    if (maxDiff < 0.5) zoom = 10;       // ~55km: 非常に近い
+    else if (maxDiff < 1) zoom = 9;     // ~111km: とても近い
+    else if (maxDiff < 2) zoom = 8;     // ~222km: 近い
+    else if (maxDiff < 3) zoom = 7;     // ~333km: やや近い
+    else if (maxDiff < 5) zoom = 6;     // ~555km: 中近距離
+    else if (maxDiff < 10) zoom = 5;    // ~1110km: 中距離
+    else if (maxDiff < 20) zoom = 4;    // ~2220km: やや長距離
+    else if (maxDiff < 40) zoom = 3;    // ~4440km: 長距離
+    else if (maxDiff < 80) zoom = 2;    // ~8880km: 超長距離
+    else zoom = 2;                      // それ以上（最小ズーム）
+
+    return { center: [centerLat, centerLng] as [number, number], zoom };
+  }, [currentLat, currentLng, destinationAirport, players]);
 
   if (!isClient) {
     return (
@@ -329,7 +353,7 @@ export default function WorldMap({
       `}</style>
 
       {/* 凡例 */}
-      <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur rounded-lg p-2.5 shadow-lg text-[10px]">
+      <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur rounded-lg p-2.5 shadow-lg text-[10px] max-h-[40vh] overflow-y-auto">
         <p className="font-bold mb-1.5 text-gray-800">凡例</p>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -345,11 +369,28 @@ export default function WorldMap({
             </div>
             <span>現在地 ({playerNickname})</span>
           </div>
-          {destinationAirport && (
-            <div className="flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded-full bg-yellow-400 border-2 border-amber-600 shadow"></span>
-              <span>目的地</span>
-            </div>
+          {players && players.length > 0 && players.some(p => p.route_spaces && p.route_spaces.length > 0) && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#FFEB3B] border-2 border-[#F9A825] shadow"></span>
+                <span>目的地</span>
+              </div>
+              <div className="border-t border-gray-300 my-1 pt-1">
+                <p className="font-bold mb-1 text-gray-700">イベントマス</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#34d399] border-2 border-[#10b981]"></span>
+                <span>⭐ 感動体験</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#fde047] border-2 border-[#eab308]"></span>
+                <span>🎁 喜び提供</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#fca5a5] border-2 border-[#ef4444]"></span>
+                <span>⚠️ トラブル</span>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -417,13 +458,47 @@ export default function WorldMap({
                 const isPassed = player.current_space_number > space.spaceNumber;
                 const isCurrent = player.current_space_number === space.spaceNumber;
 
+                // イベントタイプに応じた色設定
+                const EVENT_COLORS = {
+                  star: { border: '#10b981', fill: '#34d399' },                    // 緑（感動）
+                  encouragement_gratitude: { border: '#10b981', fill: '#34d399' }, // 緑（感動）
+                  giver: { border: '#eab308', fill: '#fde047' },                   // 黄色（喜び）
+                  trouble: { border: '#ef4444', fill: '#fca5a5' },                 // 赤（トラブル）
+                };
+
+                // マスの色を決定（優先順位: 現在地 > イベント > 通過済み > 未通過）
+                let borderColor = '#9ca3af'; // デフォルト（未通過）
+                let fillColor = '#d1d5db';   // デフォルト（未通過）
+
+                if (isCurrent) {
+                  // 現在地: プレイヤーカラー
+                  borderColor = playerRouteColor.primary;
+                  fillColor = playerRouteColor.glow;
+                } else if (isPassed && space.eventType && EVENT_COLORS[space.eventType]) {
+                  // 通過済み + イベント発生: イベントカラー
+                  borderColor = EVENT_COLORS[space.eventType].border;
+                  fillColor = EVENT_COLORS[space.eventType].fill;
+                } else if (isPassed) {
+                  // 通過済み（イベントなし）: 緑
+                  borderColor = '#10b981';
+                  fillColor = '#34d399';
+                }
+
+                // イベント絵文字のマッピング
+                const EVENT_EMOJIS = {
+                  star: '⭐',
+                  encouragement_gratitude: '💚',
+                  giver: '🎁',
+                  trouble: '⚠️',
+                };
+
                 return (
                   <CircleMarker
                     key={`space-${player.id}-${space.spaceNumber}`}
                     center={[space.lat, space.lng]}
                     radius={isCurrent ? 10 : 6}
-                    color={isPassed ? '#10b981' : isCurrent ? playerRouteColor.primary : '#9ca3af'}
-                    fillColor={isPassed ? '#34d399' : isCurrent ? playerRouteColor.glow : '#d1d5db'}
+                    color={borderColor}
+                    fillColor={fillColor}
                     fillOpacity={isCurrent ? 1 : 0.8}
                     weight={isCurrent ? 3 : 2}
                   >
@@ -432,7 +507,12 @@ export default function WorldMap({
                         <div className="font-bold">{player.player_nickname}</div>
                         <div className="font-bold">マス {space.spaceNumber}</div>
                         {isCurrent && <div className="text-green-600">現在地</div>}
-                        {isPassed && <div className="text-gray-500">通過済み</div>}
+                        {isPassed && !space.eventType && <div className="text-gray-500">通過済み</div>}
+                        {isPassed && space.eventType && (
+                          <div className="text-purple-600 font-bold">
+                            {EVENT_EMOJIS[space.eventType]} イベント発生
+                          </div>
+                        )}
                       </div>
                     </Tooltip>
                   </CircleMarker>
@@ -571,44 +651,116 @@ export default function WorldMap({
           return markers;
         })()}
 
-        {/* 共通の目的地マーカー */}
-        {destinationAirport && (
-          <>
-            <CircleMarker
-              center={[
-                getCoordinate(destinationAirport.latitude),
-                getCoordinate(destinationAirport.longitude)
-              ]}
-              radius={20}
-              color="#fbbf24"
-              fillColor="#fef3c7"
-              fillOpacity={0.3}
-              weight={2}
-              className="destination-pulse"
-            />
-            <CircleMarker
-              center={[
-                getCoordinate(destinationAirport.latitude),
-                getCoordinate(destinationAirport.longitude)
-              ]}
-              radius={14}
-              color="#d97706"
-              fillColor="#fbbf24"
-              fillOpacity={1}
-              weight={4}
-            >
-              <Tooltip direction="bottom" offset={[0, 25]} opacity={0.95} permanent>
-                <div className="text-center">
-                  <div className="font-bold text-sm">🎯 {destinationAirport.city}</div>
-                  <div className="text-xs text-gray-500">{destinationAirport.code}</div>
-                  <div className="text-xs text-amber-600 font-semibold">
-                    {destinationNumber > 0 ? `目的地${destinationNumber}` : '目的地'}
-                  </div>
-                </div>
-              </Tooltip>
-            </CircleMarker>
-          </>
-        )}
+        {/* 各プレイヤーの目的地マーカー（黄色い○） */}
+        {players && players.length > 0 && (() => {
+          // 各プレイヤーの目的地を取得してグループ化
+          const destinationMap: Map<string, Array<{ player: GamePlayer; lat: number; lng: number; airport: string; destNumber: number }>> = new Map();
+
+          console.log(`[WorldMap] 目的地マーカー生成開始 - プレイヤー数: ${players.length}`);
+          console.log(`[WorldMap] players配列の詳細:`, players.map(p => ({
+            id: p.id,
+            nickname: p.player_nickname,
+            route_spaces_length: p.route_spaces?.length || 0,
+            route_spaces_exists: !!p.route_spaces,
+            current_space: p.current_space_number,
+          })));
+
+          players.forEach((player) => {
+            console.log(`[WorldMap] ${player.player_nickname}: destination_airport_id=${player.destination_airport_id || 'なし'}, route_spaces=${player.route_spaces?.length || 0}マス, visit_history=${player.visit_history?.length || 0}箇所, current_space=${player.current_space_number}`);
+
+            // destination_airport_idを使用して目的地を取得
+            if (player.destination_airport_id) {
+              const destAirport = airports.find(a => a.id === player.destination_airport_id);
+
+              if (destAirport) {
+                const lat = getCoordinate(destAirport.latitude);
+                const lng = getCoordinate(destAirport.longitude);
+                console.log(`[WorldMap] ${player.player_nickname}の目的地座標: lat=${lat.toFixed(3)}, lng=${lng.toFixed(3)}`);
+                const posKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+
+                if (!destinationMap.has(posKey)) {
+                  destinationMap.set(posKey, []);
+                }
+
+                console.log(`[WorldMap] ${player.player_nickname}の空港検索結果: ${destAirport.city} (${destAirport.code})`);
+
+                destinationMap.get(posKey)!.push({
+                  player,
+                  lat,
+                  lng,
+                  airport: destAirport.city,
+                  destNumber: (player.visit_history?.length || 0) + 1, // 訪問履歴 + 1 = 現在の目的地番号
+                });
+
+                console.log(`[WorldMap] ${player.player_nickname}の目的地マーカー追加: ${destAirport.city} (目的地${(player.visit_history?.length || 0) + 1})`);
+              } else {
+                console.log(`[WorldMap] ${player.player_nickname}: destination_airport_id=${player.destination_airport_id}の空港が見つかりません`);
+              }
+            } else {
+              console.log(`[WorldMap] ${player.player_nickname}: destination_airport_idが設定されていないため目的地マーカーをスキップ`);
+            }
+          });
+
+          console.log(`[WorldMap] 目的地マーカー数: ${destinationMap.size}`);
+
+          // 各目的地にマーカーを表示
+          const markers: React.JSX.Element[] = [];
+
+          destinationMap.forEach((playersAtDest) => {
+            const { lat, lng, airport, destNumber } = playersAtDest[0];
+            const playerCount = playersAtDest.length;
+
+            console.log(`[WorldMap] 目的地マーカー作成: ${airport} (目的地${destNumber}) - ${playerCount}人の目的地`);
+
+            markers.push(
+              <div key={`dest-${lat}-${lng}`}>
+                {/* パルスアニメーション効果 */}
+                <CircleMarker
+                  center={[lat, lng]}
+                  radius={20}
+                  color="#FFEB3B"
+                  fillColor="#FFF9C4"
+                  fillOpacity={0.3}
+                  weight={2}
+                  className="destination-pulse"
+                />
+                {/* メイン目的地マーカー */}
+                <CircleMarker
+                  center={[lat, lng]}
+                  radius={14}
+                  color="#F9A825"
+                  fillColor="#FFEB3B"
+                  fillOpacity={1}
+                  weight={4}
+                >
+                  <Tooltip direction="bottom" offset={[0, 25]} opacity={0.95} permanent>
+                    <div className="text-center">
+                      <div className="font-bold text-sm">🎯 {airport}</div>
+                      {destNumber > 0 && (
+                        <div className="text-xs text-amber-600 font-semibold">
+                          目的地{destNumber}
+                        </div>
+                      )}
+                      {playerCount > 1 ? (
+                        <div className="text-xs text-purple-600 font-bold mt-1">
+                          {playerCount}人の目的地
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-600">
+                          {playersAtDest[0].player.player_nickname}の目的地
+                        </div>
+                      )}
+                    </div>
+                  </Tooltip>
+                </CircleMarker>
+              </div>
+            );
+          });
+
+          console.log(`[WorldMap] 生成されたマーカー数: ${markers.length}`);
+
+          return markers;
+        })()}
       </MapContainer>
     </div>
   );

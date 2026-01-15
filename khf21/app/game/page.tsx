@@ -340,6 +340,7 @@ function GameContent() {
         current_airport_id: startingAirportId,
         current_port_id: null,
         current_space_number: 0,
+        destination_airport_id: null,
         route_spaces: null,
         impressed_points: 0,
         giver_points: 0,
@@ -375,6 +376,7 @@ function GameContent() {
           current_airport_id: startingAirportId,
           current_port_id: null,
           current_space_number: 0,
+          destination_airport_id: null,
           route_spaces: null,
           impressed_points: 0,
           giver_points: 0,
@@ -578,6 +580,7 @@ function GameContent() {
 
             return {
               ...p,
+              destination_airport_id: destination.id,
               route_spaces: playerSpaces,
               current_space_number: 0,
             };
@@ -594,6 +597,7 @@ function GameContent() {
 
             return {
               ...p,
+              destination_airport_id: destination.id,
               route_spaces: playerSpaces,
               current_space_number: 0,
             };
@@ -1142,6 +1146,58 @@ function GameContent() {
   // イベント完了時
   const handleEventClose = async () => {
     const currentEvent = pendingEvents[currentEventIndex];
+
+    // イベントマスに色を記録
+    if (currentTurnPlayer && currentEvent) {
+      const eventType = currentEvent.type;
+      const spaceNumber = currentTurnPlayer.current_space_number;
+
+      // イベントタイプをマッピング
+      let mappedEventType: 'star' | 'trouble' | 'giver' | 'encouragement_gratitude' | null = null;
+      switch (eventType) {
+        case 'star':
+        case 'attraction':
+        case 'art':
+        case 'gourmet':
+          mappedEventType = 'star';
+          break;
+        case 'trouble':
+          mappedEventType = 'trouble';
+          break;
+        case 'giver':
+          mappedEventType = 'giver';
+          break;
+        case 'encouragement_gratitude':
+          mappedEventType = 'encouragement_gratitude';
+          break;
+      }
+
+      // 該当マスにeventTypeを記録
+      if (mappedEventType) {
+        setPlayers((prevPlayers) => {
+          return prevPlayers.map((p) => {
+            if (p.id === currentTurnPlayer.id && p.route_spaces) {
+              const updatedRouteSpaces = p.route_spaces.map((space) => {
+                if (space.spaceNumber === spaceNumber) {
+                  return {
+                    ...space,
+                    eventType: mappedEventType,
+                  };
+                }
+                return space;
+              });
+
+              return {
+                ...p,
+                route_spaces: updatedRouteSpaces,
+              };
+            }
+            return p;
+          });
+        });
+        console.log(`[イベント記録] ${currentTurnPlayer.player_nickname}のマス${spaceNumber}に${mappedEventType}イベントを記録`);
+      }
+    }
 
     // ポイント計算
     let giverPoints = 0;
@@ -1813,7 +1869,8 @@ function GameContent() {
                       current_airport_id: arrivedAirport.id,
                       route_spaces: newRouteForFreeman,
                       current_space_number: 0,
-                      impressed_points: p.impressed_points + points,
+                      impressed_points: p.impressed_points + (points - arrivalBonus), // 体験ポイントのみ
+                      arrival_points: (p.arrival_points || 0) + arrivalBonus, // 到着ボーナスを記録
                       total_points: p.total_points + points,
                       visit_history: [...(p.visit_history || []), freemanVisit],
                     }
@@ -2057,6 +2114,7 @@ function GameContent() {
                   console.log(`[共通] ${p.player_nickname}: ${playerCurrentAirport.city} → ${destination.city} (${playerSpaces.length}マス)`);
                   return {
                     ...p,
+                    destination_airport_id: destination.id,
                     route_spaces: playerSpaces,
                     current_space_number: 0,
                   };
@@ -2071,6 +2129,7 @@ function GameContent() {
                   console.log(`[個別] ${p.player_nickname}: ${playerCurrentAirport.city} → ${destination.city} (${playerSpaces.length}マス)`);
                   return {
                     ...p,
+                    destination_airport_id: destination.id,
                     route_spaces: playerSpaces,
                     current_space_number: 0,
                   };

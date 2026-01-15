@@ -33,6 +33,7 @@ export interface RouteSpace {
   lat: number;
   lng: number;
   spaceNumber: number;
+  eventType?: 'star' | 'trouble' | 'giver' | 'encouragement_gratitude' | null; // イベント発生時に設定
 }
 
 /**
@@ -79,7 +80,7 @@ export interface GamePlayer {
   current_airport_id: string | null;
   current_port_id: string | null;
   current_space_number: number;
-  // 注: destination_airport_idは削除 - ゲーム全体で共通の目的地を使用
+  destination_airport_id: string | null; // 現在の目的地（マップ表示用）
   route_spaces: RouteSpace[] | null;
 
   // ポイント
@@ -172,7 +173,7 @@ export interface UpdatePlayerParams {
   current_airport_id?: string | null;
   current_port_id?: string | null;
   current_space_number?: number;
-  // 注: destination_airport_idは削除 - ゲーム全体で共通の目的地を使用
+  destination_airport_id?: string | null; // 現在の目的地（マップ表示用）
   route_spaces?: RouteSpace[] | null;
   impressed_points?: number;
   giver_points?: number;

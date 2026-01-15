@@ -84,7 +84,7 @@ export default function ArrivalPointsBreakdown({
                   </div>
                   {breakdown.isFirstToArrive && (
                     <div className="text-xs text-gray-600">
-                      この都市に一番乗り！
+                      目的地{destinationNumber}に一番乗り！
                     </div>
                   )}
                 </div>
