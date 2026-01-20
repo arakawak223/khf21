@@ -290,6 +290,16 @@ export function drawRandomCards(count: number, excludeIds: string[] = []): GameC
   return drawn;
 }
 
+// ランダムにカードを取得（PlayerCard形式で）
+export function drawRandomPlayerCards(count: number, excludeIds: string[] = []): import('@/types/strategy.types').PlayerCard[] {
+  const cards = drawRandomCards(count, excludeIds);
+  return cards.map(card => ({
+    cardId: card.id,
+    obtainedAt: new Date().toISOString(),
+    used: false,
+  }));
+}
+
 // プレイヤーにランダムなミッションを割り当て（3つ）
 export function assignRandomMissions(count: number = 3): Mission[] {
   // 難易度をバランスよく選ぶ（簡単1、普通1、難しい1）

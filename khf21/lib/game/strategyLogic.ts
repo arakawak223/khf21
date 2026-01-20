@@ -7,8 +7,9 @@ import type {
   CityOccupation,
   CardEffect,
   OvertakeEvent,
+  PlayerCard,
 } from '@/types/strategy.types';
-import { getMissionById } from './strategyData';
+import { getMissionById, drawRandomPlayerCards } from './strategyData';
 
 // ===============================
 // ミッション進捗更新
@@ -19,8 +20,16 @@ export function updateMissionProgress(
   missions: PlayerMission[],
   statistics: PlayerStatistics,
   totalPoints: number
-): { missions: PlayerMission[]; completedMissions: string[] } {
+): {
+  missions: PlayerMission[];
+  completedMissions: string[];
+  rewardCards: PlayerCard[];
+  rewardPoints: number;
+} {
   const completedMissions: string[] = [];
+  const rewardCards: PlayerCard[] = [];
+  let rewardPoints = 0;
+
   const updatedMissions = missions.map((playerMission) => {
     if (playerMission.completed) return playerMission;
 
@@ -73,6 +82,12 @@ export function updateMissionProgress(
 
     if (isNowCompleted) {
       completedMissions.push(mission.id);
+      // ミッション報酬を追加
+      rewardPoints += mission.rewardPoints;
+      if (mission.rewardCards && mission.rewardCards > 0) {
+        const newCards = drawRandomPlayerCards(mission.rewardCards);
+        rewardCards.push(...newCards);
+      }
     }
 
     return {
@@ -83,7 +98,7 @@ export function updateMissionProgress(
     };
   });
 
-  return { missions: updatedMissions, completedMissions };
+  return { missions: updatedMissions, completedMissions, rewardCards, rewardPoints };
 }
 
 // 特定タイプの選択時にミッション進捗を増やす
@@ -261,7 +276,7 @@ export function detectOvertake(
 // カード効果の実行
 // ===============================
 
-// カード効果を実行（簡易版 - 実際の実装では各効果に応じた処理が必要）
+// カード効果を実行
 export function executeCardEffect(
   effect: CardEffect,
   userId: string,
@@ -270,9 +285,13 @@ export function executeCardEffect(
 ): {
   updatedPlayers: GamePlayer[];
   message: string;
+  needsExtraCards?: number; // 追加カード枚数
+  needsTeleport?: boolean; // テレポート選択が必要か
 } {
   const updatedPlayers = [...players];
   let message = '';
+  let needsExtraCards: number | undefined;
+  let needsTeleport = false;
 
   const userIndex = updatedPlayers.findIndex(p => p.id === userId);
   const targetIndex = targetUserId ? updatedPlayers.findIndex(p => p.id === targetUserId) : -1;
@@ -281,63 +300,172 @@ export function executeCardEffect(
     return { updatedPlayers, message: 'プレイヤーが見つかりません' };
   }
 
+  const user = updatedPlayers[userIndex];
+
+  // 対象プレイヤーが barrier を持っているかチェック（攻撃カードの場合）
+  if (targetIndex !== -1 && (effect.type === 'move_back' || effect.type === 'steal_points' || effect.type === 'freeze')) {
+    const target = updatedPlayers[targetIndex];
+    const hasBarrier = target.active_effects?.some(e => e.effectType === 'barrier');
+    const hasCounter = target.active_effects?.some(e => e.effectType === 'counter');
+
+    if (hasBarrier) {
+      // バリアで攻撃を無効化
+      updatedPlayers[targetIndex] = {
+        ...target,
+        active_effects: target.active_effects?.filter(e => e.effectType !== 'barrier'),
+      };
+      message = `${target.player_nickname}のバリアで攻撃が無効化されました！`;
+      return { updatedPlayers, message };
+    }
+
+    if (hasCounter) {
+      // カウンターで攻撃を跳ね返す
+      updatedPlayers[targetIndex] = {
+        ...target,
+        active_effects: target.active_effects?.filter(e => e.effectType !== 'counter'),
+      };
+      // 攻撃者に効果を適用
+      targetUserId = userId;
+      message = `${target.player_nickname}のカウンターで攻撃が跳ね返されました！`;
+    }
+  }
+
   switch (effect.type) {
     case 'move_back':
-      if (targetIndex !== -1 && effect.value) {
-        const target = updatedPlayers[targetIndex];
-        const newPosition = Math.max(1, target.current_space_number - effect.value);
-        updatedPlayers[targetIndex] = {
-          ...target,
-          current_space_number: newPosition,
-        };
-        message = `${target.player_nickname}を${effect.value}マス戻しました！`;
+      if (targetUserId && effect.value) {
+        const finalTargetIndex = updatedPlayers.findIndex(p => p.id === targetUserId);
+        if (finalTargetIndex !== -1) {
+          const target = updatedPlayers[finalTargetIndex];
+          const newPosition = Math.max(1, target.current_space_number - effect.value);
+          updatedPlayers[finalTargetIndex] = {
+            ...target,
+            current_space_number: newPosition,
+          };
+          if (!message) {
+            message = `${target.player_nickname}を${effect.value}マス戻しました！`;
+          }
+        }
       }
       break;
 
     case 'steal_points':
-      if (targetIndex !== -1 && effect.value) {
-        const target = updatedPlayers[targetIndex];
-        const stolenPoints = Math.floor(target.total_points * (effect.value / 100));
-        updatedPlayers[targetIndex] = {
-          ...target,
-          total_points: Math.max(0, target.total_points - stolenPoints),
-        };
-        updatedPlayers[userIndex] = {
-          ...updatedPlayers[userIndex],
-          total_points: updatedPlayers[userIndex].total_points + stolenPoints,
-        };
-        message = `${target.player_nickname}から${stolenPoints}ポイント奪いました！`;
+      if (targetUserId && effect.value) {
+        const finalTargetIndex = updatedPlayers.findIndex(p => p.id === targetUserId);
+        if (finalTargetIndex !== -1) {
+          const target = updatedPlayers[finalTargetIndex];
+          const stolenPoints = Math.floor(target.total_points * (effect.value / 100));
+          updatedPlayers[finalTargetIndex] = {
+            ...target,
+            total_points: Math.max(0, target.total_points - stolenPoints),
+          };
+          const attackerIndex = updatedPlayers.findIndex(p => p.id === userId);
+          if (attackerIndex !== -1) {
+            updatedPlayers[attackerIndex] = {
+              ...updatedPlayers[attackerIndex],
+              total_points: updatedPlayers[attackerIndex].total_points + stolenPoints,
+            };
+          }
+          if (!message) {
+            message = `${target.player_nickname}から${stolenPoints}ポイント奪いました！`;
+          }
+        }
       }
       break;
 
     case 'double_move':
+      // active_effects に追加
+      updatedPlayers[userIndex] = {
+        ...user,
+        active_effects: [
+          ...(user.active_effects || []),
+          {
+            effectType: 'double_move',
+            duration: 1,
+            source: 'card',
+          },
+        ],
+      };
       message = '次のサイコロで2回振れます！';
       break;
 
     case 'double_points':
+      // active_effects に追加
+      updatedPlayers[userIndex] = {
+        ...user,
+        active_effects: [
+          ...(user.active_effects || []),
+          {
+            effectType: 'double_points',
+            duration: effect.duration || 1,
+            source: 'card',
+          },
+        ],
+      };
       message = '次の到着でポイント2倍！';
       break;
 
     case 'barrier':
+      // active_effects に追加
+      updatedPlayers[userIndex] = {
+        ...user,
+        active_effects: [
+          ...(user.active_effects || []),
+          {
+            effectType: 'barrier',
+            duration: effect.duration || 2,
+            source: 'card',
+          },
+        ],
+      };
       message = `${effect.duration}ターンの間、攻撃カードを無効化します！`;
       break;
 
     case 'counter':
+      // active_effects に追加
+      updatedPlayers[userIndex] = {
+        ...user,
+        active_effects: [
+          ...(user.active_effects || []),
+          {
+            effectType: 'counter',
+            duration: effect.duration || 1,
+            source: 'card',
+          },
+        ],
+      };
       message = '次の攻撃を跳ね返します！';
       break;
 
     case 'freeze':
-      if (targetIndex !== -1) {
-        const target = updatedPlayers[targetIndex];
-        message = `${target.player_nickname}を${effect.duration}ターン凍結しました！`;
+      if (targetUserId) {
+        const finalTargetIndex = updatedPlayers.findIndex(p => p.id === targetUserId);
+        if (finalTargetIndex !== -1) {
+          const target = updatedPlayers[finalTargetIndex];
+          updatedPlayers[finalTargetIndex] = {
+            ...target,
+            active_effects: [
+              ...(target.active_effects || []),
+              {
+                effectType: 'freeze',
+                duration: effect.duration || 1,
+                source: 'card',
+              },
+            ],
+          };
+          if (!message) {
+            message = `${target.player_nickname}を${effect.duration}ターン凍結しました！`;
+          }
+        }
       }
       break;
 
     case 'extra_card':
-      message = `カードを${effect.value}枚追加で引きます！`;
+      needsExtraCards = effect.value || 2;
+      message = `カードを${needsExtraCards}枚追加で引きます！`;
       break;
 
     case 'teleport':
+      needsTeleport = true;
       message = '任意の都市に瞬間移動します！';
       break;
 
@@ -345,5 +473,69 @@ export function executeCardEffect(
       message = 'カード効果を発動しました！';
   }
 
-  return { updatedPlayers, message };
+  // カード使用数を統計に追加
+  if (updatedPlayers[userIndex].statistics) {
+    updatedPlayers[userIndex] = {
+      ...updatedPlayers[userIndex],
+      statistics: {
+        ...updatedPlayers[userIndex].statistics!,
+        cardsUsed: (updatedPlayers[userIndex].statistics!.cardsUsed || 0) + 1,
+      },
+    };
+  }
+
+  return { updatedPlayers, message, needsExtraCards, needsTeleport };
+}
+
+// ===============================
+// Active Effects 管理
+// ===============================
+
+// ターン終了時に active_effects の duration を減らす
+export function decreaseActiveEffectsDuration(player: GamePlayer): GamePlayer {
+  if (!player.active_effects || player.active_effects.length === 0) {
+    return player;
+  }
+
+  const updatedEffects = player.active_effects
+    .map(effect => ({
+      ...effect,
+      duration: effect.duration - 1,
+    }))
+    .filter(effect => effect.duration > 0);
+
+  return {
+    ...player,
+    active_effects: updatedEffects,
+  };
+}
+
+// プレイヤーが特定の効果を持っているかチェック
+export function hasActiveEffect(player: GamePlayer, effectType: string): boolean {
+  return player.active_effects?.some(e => e.effectType === effectType) || false;
+}
+
+// プレイヤーの active_effects から特定の効果を削除
+export function removeActiveEffect(player: GamePlayer, effectType: string): GamePlayer {
+  if (!player.active_effects) return player;
+
+  return {
+    ...player,
+    active_effects: player.active_effects.filter(e => e.effectType !== effectType),
+  };
+}
+
+// プレイヤーが freeze 状態かチェック
+export function isFrozen(player: GamePlayer): boolean {
+  return hasActiveEffect(player, 'freeze');
+}
+
+// プレイヤーが double_move 効果を持っているかチェック
+export function hasDoubleMove(player: GamePlayer): boolean {
+  return hasActiveEffect(player, 'double_move');
+}
+
+// プレイヤーが double_points 効果を持っているかチェック
+export function hasDoublePoints(player: GamePlayer): boolean {
+  return hasActiveEffect(player, 'double_points');
 }

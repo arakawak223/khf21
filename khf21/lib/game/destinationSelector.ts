@@ -265,12 +265,23 @@ export function scoreDestination(candidate: DestinationCandidate): number {
   return score;
 }
 
-// ランダムに3グループに分割
+// 戦略的グループ分け（距離ベース）
 export function generateRandomGroups(
   allAirports: Airport[],
   currentAirportId: string,
   visitedAirportIds: string[]
 ): AirportGroup[] {
+  // 現在地の空港を取得
+  const currentAirport = allAirports.find(a => a.id === currentAirportId);
+  if (!currentAirport) {
+    console.error('現在地の空港が見つかりません');
+    // フォールバック: 最初の空港を使用
+    return generateFallbackGroups(allAirports, currentAirportId, visitedAirportIds);
+  }
+
+  const currentLat = getCoordinate(currentAirport.latitude);
+  const currentLng = getCoordinate(currentAirport.longitude);
+
   // 訪問済みと現在地を除外
   let availableAirports = allAirports.filter(
     airport =>
@@ -284,6 +295,99 @@ export function generateRandomGroups(
     availableAirports = allAirports.filter(airport => airport.id !== currentAirportId);
   }
 
+  // 各空港までの距離を計算
+  const airportsWithDistance = availableAirports.map(airport => {
+    const distance = calculateDistance(
+      currentLat,
+      currentLng,
+      getCoordinate(airport.latitude),
+      getCoordinate(airport.longitude)
+    );
+    return { airport, distance };
+  });
+
+  // 距離によって3つのグループに分類
+  // 🟢 スピード重視: 1,500-5,000km（近距離、先着ボーナス狙い）
+  // 🔵 バランス型: 5,000-10,000km（中距離、安定）
+  // 🔴 ハイリスク・ハイリターン: 10,000km以上（遠距離、高ポイント）
+
+  const speedGroup = airportsWithDistance.filter(a => a.distance >= 1500 && a.distance < 5000);
+  const balanceGroup = airportsWithDistance.filter(a => a.distance >= 5000 && a.distance < 10000);
+  const highRiskGroup = airportsWithDistance.filter(a => a.distance >= 10000);
+
+  // 1500km未満の超近距離はスピードグループに追加
+  const veryNearAirports = airportsWithDistance.filter(a => a.distance < 1500);
+  speedGroup.push(...veryNearAirports);
+
+  // グループが空の場合の処理
+  // バランスグループが空の場合、遠距離から一部を移動
+  if (balanceGroup.length === 0 && highRiskGroup.length > 3) {
+    const moved = highRiskGroup.splice(0, Math.floor(highRiskGroup.length / 2));
+    balanceGroup.push(...moved);
+  }
+
+  // スピードグループが空の場合、バランスから一部を移動
+  if (speedGroup.length === 0 && balanceGroup.length > 3) {
+    const moved = balanceGroup.splice(0, Math.floor(balanceGroup.length / 2));
+    speedGroup.push(...moved);
+  }
+
+  // ハイリスクグループが空の場合、バランスから一部を移動
+  if (highRiskGroup.length === 0 && balanceGroup.length > 3) {
+    const moved = balanceGroup.splice(Math.floor(balanceGroup.length / 2));
+    highRiskGroup.push(...moved);
+  }
+
+  const groups: AirportGroup[] = [
+    {
+      color: 'red' as GroupColor,
+      colorName: 'ハイリスク・ハイリターン',
+      emoji: '🔴',
+      description: '遠距離・高ポイント（10,000km以上）',
+      airports: highRiskGroup.map(a => a.airport),
+      count: highRiskGroup.length,
+    },
+    {
+      color: 'blue' as GroupColor,
+      colorName: 'バランス型',
+      emoji: '🔵',
+      description: '中距離・安定（5,000-10,000km）',
+      airports: balanceGroup.map(a => a.airport),
+      count: balanceGroup.length,
+    },
+    {
+      color: 'green' as GroupColor,
+      colorName: 'スピード重視',
+      emoji: '🟢',
+      description: '近距離・連続移動（1,500-5,000km）',
+      airports: speedGroup.map(a => a.airport),
+      count: speedGroup.length,
+    },
+  ];
+
+  console.log(
+    `戦略的グループ生成: ${groups.map(g => `${g.emoji} ${g.colorName} ${g.count}空港`).join(', ')}`
+  );
+
+  return groups;
+}
+
+// フォールバック用のランダムグループ生成
+function generateFallbackGroups(
+  allAirports: Airport[],
+  currentAirportId: string,
+  visitedAirportIds: string[]
+): AirportGroup[] {
+  let availableAirports = allAirports.filter(
+    airport =>
+      airport.id !== currentAirportId &&
+      !visitedAirportIds.includes(airport.id)
+  );
+
+  if (availableAirports.length === 0) {
+    availableAirports = allAirports.filter(airport => airport.id !== currentAirportId);
+  }
+
   // Fisher-Yatesアルゴリズムでシャッフル
   const shuffled = [...availableAirports];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -291,43 +395,35 @@ export function generateRandomGroups(
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 
-  // 3つのグループに分割
   const totalCount = shuffled.length;
   const baseSize = Math.floor(totalCount / 3);
   const remainder = totalCount % 3;
 
-  // 余りを最初のグループに分配（例: 50→17,17,16）
   const group1Size = baseSize + (remainder > 0 ? 1 : 0);
   const group2Size = baseSize + (remainder > 1 ? 1 : 0);
   const group3Size = baseSize;
 
-  const groups: AirportGroup[] = [
+  return [
     {
       color: 'red' as GroupColor,
-      colorName: 'Red',
+      colorName: 'ハイリスク・ハイリターン',
       emoji: '🔴',
       airports: shuffled.slice(0, group1Size),
       count: group1Size,
     },
     {
       color: 'blue' as GroupColor,
-      colorName: 'Blue',
+      colorName: 'バランス型',
       emoji: '🔵',
       airports: shuffled.slice(group1Size, group1Size + group2Size),
       count: group2Size,
     },
     {
       color: 'green' as GroupColor,
-      colorName: 'Green',
+      colorName: 'スピード重視',
       emoji: '🟢',
       airports: shuffled.slice(group1Size + group2Size),
       count: group3Size,
     },
   ];
-
-  console.log(
-    `グループ生成: ${groups.map(g => `${g.emoji} ${g.count}空港`).join(', ')}`
-  );
-
-  return groups;
 }

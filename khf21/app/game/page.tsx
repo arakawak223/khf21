@@ -17,6 +17,7 @@ import CardHand from '@/components/game/CardHand';
 import MissionPanel from '@/components/game/MissionPanel';
 import CardTargetSelector from '@/components/game/CardTargetSelector';
 import CardEffectNotification from '@/components/game/CardEffectNotification';
+import CardObtainedAnimation from '@/components/game/CardObtainedAnimation';
 import MultiplayerFlow from '@/components/game/multiplayer/MultiplayerFlow';
 import PointsDisplay from '@/components/game/PointsDisplay';
 import GameProgress from '@/components/game/GameProgress';
@@ -59,13 +60,13 @@ import { PlayerList } from '@/components/game/PlayerList';
 import { FreemanAI } from '@/lib/game/freemanAI';
 import { initializeAllPlayersStrategy } from '@/lib/game/playerInitializer';
 import { generateDestinationCandidates, selectRandomChooser, generateRandomGroups } from '@/lib/game/destinationSelector';
-import { updateCityOccupation, detectOvertake, executeCardEffect } from '@/lib/game/strategyLogic';
-import { getCardById } from '@/lib/game/strategyData';
+import { updateCityOccupation, detectOvertake, executeCardEffect, decreaseActiveEffectsDuration, isFrozen, hasDoubleMove, hasDoublePoints, removeActiveEffect, updateMissionProgress } from '@/lib/game/strategyLogic';
+import { getCardById, drawRandomPlayerCards } from '@/lib/game/strategyData';
 import type { DestinationCandidate, CityOccupation, AirportGroup, GroupColor } from '@/types/strategy.types';
 import GroupSelector from '@/components/game/GroupSelector';
 
 // フリーマンのポイントバランス調整用倍率
-const FREEMAN_POINT_MULTIPLIER = 2.0; // フリーマンは人間プレイヤーの2倍のポイントを獲得
+const FREEMAN_POINT_MULTIPLIER = 1.0; // フリーマンも人間プレイヤーと同じポイントを獲得（イベントも発生するため）
 
 function GameContent() {
   const {
@@ -162,6 +163,11 @@ function GameContent() {
   const [selectedCardToUse, setSelectedCardToUse] = useState<string | null>(null);
   const [cardEffectMessage, setCardEffectMessage] = useState<string>('');
   const [showCardEffect, setShowCardEffect] = useState(false);
+  const [showCardObtained, setShowCardObtained] = useState(false);
+  const [obtainedCards, setObtainedCards] = useState<import('@/types/strategy.types').PlayerCard[]>([]);
+  const [needsTeleportSelection, setNeedsTeleportSelection] = useState(false);
+  const [firstDiceResult, setFirstDiceResult] = useState<number | null>(null);
+  const [needsSecondDice, setNeedsSecondDice] = useState(false);
 
   // 空港データ取得
   useEffect(() => {
@@ -637,14 +643,43 @@ function GameContent() {
   const handleMovementRouletteComplete = async (result: number) => {
     console.log('Movement roulette result:', result, 'spaces');
 
-    // ルーレットタイプをリセット
-    setSelectedDiceType(6);
-
     // プレイヤー状態から情報を取得（プレイヤー状態が唯一の真実）
     if (!destinationAirport || !currentTurnPlayer?.route_spaces) {
       console.error('No destination or route in current player state');
       return;
     }
+
+    // double_move 効果のチェック
+    if (currentTurnPlayer && hasDoubleMove(currentTurnPlayer) && !needsSecondDice) {
+      // 1回目のサイコロの結果を保存
+      setFirstDiceResult(result);
+      setNeedsSecondDice(true);
+      console.log(`double_move 効果発動！1回目: ${result}、2回目のサイコロを振ります`);
+      // double_move 効果を削除
+      setPlayers((prevPlayers) => {
+        return prevPlayers.map((p) => {
+          if (p.id === currentTurnPlayer.id) {
+            return removeActiveEffect(p, 'double_move');
+          }
+          return p;
+        });
+      });
+      // ルーレットタイプをリセットせず、2回目のサイコロを待つ
+      return;
+    }
+
+    // 2回目のサイコロの場合、結果を合算
+    let finalResult = result;
+    if (needsSecondDice && firstDiceResult !== null) {
+      finalResult = firstDiceResult + result;
+      console.log(`double_move 効果: 1回目${firstDiceResult} + 2回目${result} = ${finalResult}`);
+      // リセット
+      setFirstDiceResult(null);
+      setNeedsSecondDice(false);
+    }
+
+    // ルーレットタイプをリセット
+    setSelectedDiceType(6);
 
     // グローバル状態とプレイヤー状態を同期（既に共通目的地を使用しているので同期は不要）
     // ルートとマス数は同期
@@ -656,10 +691,10 @@ function GameContent() {
     }
 
     // マス進行音を再生（カチッカチッカチッ）
-    playDiceSteps(result);
+    playDiceSteps(finalResult);
 
     // マス数を進める
-    const newSpaceNumber = currentTurnPlayer.current_space_number + result;
+    const newSpaceNumber = currentTurnPlayer.current_space_number + finalResult;
     const totalSpaces = currentTurnPlayer.route_spaces.length;
     console.log(`Moving from space ${currentTurnPlayer.current_space_number} to ${newSpaceNumber} (total spaces: ${totalSpaces})`);
 
@@ -1072,11 +1107,19 @@ function GameContent() {
       if (arrivalBonus !== 0) {
         // フリーマンの場合はポイントを倍増
         const isFreeman = currentTurnPlayer.player_type === 'freeman_d' || currentTurnPlayer.player_type === 'freeman_s';
-        const multiplier = isFreeman ? FREEMAN_POINT_MULTIPLIER : 1.0;
+        let multiplier = isFreeman ? FREEMAN_POINT_MULTIPLIER : 1.0;
+
+        // double_points 効果のチェック
+        const hasDoublePointsEffect = hasDoublePoints(currentTurnPlayer);
+        if (hasDoublePointsEffect) {
+          multiplier *= 2;
+          console.log('double_points 効果発動！ポイント2倍');
+        }
+
         const adjustedBonus = Math.floor(arrivalBonus * multiplier);
 
         setPlayers((prevPlayers) => {
-          const updatedPlayers = prevPlayers.map((p) =>
+          let updatedPlayers = prevPlayers.map((p) =>
             p.id === currentTurnPlayer.id
               ? {
                   ...p,
@@ -1087,6 +1130,13 @@ function GameContent() {
               : p
           );
 
+          // double_points 効果を削除
+          if (hasDoublePointsEffect) {
+            updatedPlayers = updatedPlayers.map((p) =>
+              p.id === currentTurnPlayer.id ? removeActiveEffect(p, 'double_points') : p
+            );
+          }
+
           // currentTurnPlayerも更新
           const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
           if (updatedCurrentPlayer) {
@@ -1094,10 +1144,33 @@ function GameContent() {
           }
 
           const bonusType = isFirstToArrive ? '先着ボーナス' : tollFee > 0 ? `到着ポイント（通行料-${tollFee}）` : '到着ポイント';
-          const logSuffix = isFreeman ? ` (フリーマンボーナス: ${multiplier}x)` : '';
+          const logSuffix = isFreeman ? ` (フリーマンボーナス: ${multiplier}x)` : hasDoublePointsEffect ? ' (double_points: 2x)' : '';
           console.log(`プレイヤー ${currentTurnPlayer.player_nickname} に${bonusType} ${adjustedBonus}pt を付与${logSuffix}`);
           return updatedPlayers;
         });
+      }
+
+      // カード獲得イベント（目的地到着時、一定確率で）
+      if (currentTurnPlayer.player_type === 'human') {
+        const cardDropRate = 0.3; // 30%の確率でカードを獲得
+        if (Math.random() < cardDropRate) {
+          const newCards = drawRandomPlayerCards(1);
+          setPlayers((prevPlayers) => {
+            return prevPlayers.map((p) => {
+              if (p.id === currentTurnPlayer.id) {
+                return {
+                  ...p,
+                  cards: [...(p.cards || []), ...newCards],
+                };
+              }
+              return p;
+            });
+          });
+          // カード獲得アニメーション表示
+          setObtainedCards(newCards);
+          setShowCardObtained(true);
+          console.log(`カード獲得: ${newCards.map(c => getCardById(c.cardId)?.nameJa).join(', ')}`);
+        }
       }
     }
 
@@ -1285,6 +1358,55 @@ function GameContent() {
       setPendingEvents([]);
       setCurrentEventIndex(0);
 
+      // ミッション進捗を更新（マルチプレイヤーモードのみ）
+      if ((gameSession as any).is_multiplayer && currentTurnPlayer && currentTurnPlayer.missions && currentTurnPlayer.statistics) {
+        const missionResult = updateMissionProgress(
+          currentTurnPlayer.missions,
+          currentTurnPlayer.statistics,
+          currentTurnPlayer.total_points
+        );
+
+        // ミッション達成時の処理
+        if (missionResult.completedMissions.length > 0) {
+          console.log(`ミッション達成: ${missionResult.completedMissions.length}個`);
+
+          // プレイヤーにミッション更新、ポイント追加、カード追加
+          setPlayers((prevPlayers) => {
+            return prevPlayers.map((p) => {
+              if (p.id === currentTurnPlayer.id) {
+                const updatedPlayer = {
+                  ...p,
+                  missions: missionResult.missions,
+                  total_points: p.total_points + missionResult.rewardPoints,
+                  cards: [...(p.cards || []), ...missionResult.rewardCards],
+                  statistics: {
+                    ...p.statistics,
+                    missionsCompleted: (p.statistics?.missionsCompleted || 0) + missionResult.completedMissions.length,
+                  } as any,
+                };
+
+                // currentTurnPlayerも更新
+                setCurrentTurnPlayer(updatedPlayer);
+
+                return updatedPlayer;
+              }
+              return p;
+            });
+          });
+
+          // カード報酬がある場合、アニメーション表示
+          if (missionResult.rewardCards.length > 0) {
+            setObtainedCards(missionResult.rewardCards);
+            setShowCardObtained(true);
+          }
+
+          // ポイント報酬があれば通知
+          if (missionResult.rewardPoints > 0) {
+            console.log(`ミッション報酬: +${missionResult.rewardPoints}pt, +${missionResult.rewardCards.length}カード`);
+          }
+        }
+      }
+
       // 目的地に到達しているかチェック（プレイヤー状態から判定）
       // 重要: currentTurnPlayerではなくplayers配列から最新の状態を取得
       const latestPlayer = players.find(p => p.id === currentTurnPlayer?.id);
@@ -1389,9 +1511,18 @@ function GameContent() {
 
   // フリーマンの目的地発表から続ける
   const handleFreemanDestinationContinue = async () => {
+    console.log('========================================');
+    console.log('🎯 handleFreemanDestinationContinue 呼び出し');
+    console.log('フリーマンの目的地発表を閉じて、ルーレットに進みます');
+    console.log('========================================');
+
     setShowFreemanDestination(false);
     setFreemanSelectedDestination(null);
     setFreemanName('');
+
+    // 少し待機してから次の処理へ（状態更新の完了を待つ）
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     // フリーマンのターンを継続（ルーレットを回す処理に戻る）
     await continueFreemanTurn();
   };
@@ -1503,6 +1634,31 @@ function GameContent() {
     setCardEffectMessage(result.message);
     setShowCardEffect(true);
 
+    // extra_card 効果の処理
+    if (result.needsExtraCards && result.needsExtraCards > 0) {
+      const newCards = drawRandomPlayerCards(result.needsExtraCards);
+      // プレイヤーにカードを追加
+      setPlayers((prevPlayers) => {
+        return prevPlayers.map((p) => {
+          if (p.id === currentTurnPlayer.id) {
+            return {
+              ...p,
+              cards: [...(p.cards || []), ...newCards],
+            };
+          }
+          return p;
+        });
+      });
+      // カード獲得アニメーション表示
+      setObtainedCards(newCards);
+      setShowCardObtained(true);
+    }
+
+    // teleport 効果の処理
+    if (result.needsTeleport) {
+      setNeedsTeleportSelection(true);
+    }
+
     // モーダルを閉じる
     setShowCardTargetSelector(false);
     setSelectedCardToUse(null);
@@ -1530,10 +1686,37 @@ function GameContent() {
 
     console.log(`${currentTurnPlayer.player_nickname} のターン終了`);
 
+    // 現在のプレイヤーの active_effects の duration を減らす
+    setPlayers((prevPlayers) => {
+      return prevPlayers.map((p) => {
+        if (p.id === currentTurnPlayer.id) {
+          return decreaseActiveEffectsDuration(p);
+        }
+        return p;
+      });
+    });
+
     // 次のプレイヤーへ切り替え
     const currentIndex = players.findIndex((p) => p.id === currentTurnPlayer.id);
     const nextIndex = (currentIndex + 1) % players.length;
-    const nextPlayer = players[nextIndex];
+    let nextPlayer = players[nextIndex];
+
+    // 次のプレイヤーが freeze 状態の場合、スキップ
+    if (isFrozen(nextPlayer)) {
+      console.log(`${nextPlayer.player_nickname} は凍結状態のためターンをスキップします`);
+      // freeze 効果を削除
+      setPlayers((prevPlayers) => {
+        return prevPlayers.map((p) => {
+          if (p.id === nextPlayer.id) {
+            return removeActiveEffect(p, 'freeze');
+          }
+          return p;
+        });
+      });
+      // 次の次のプレイヤーに進む
+      const nextNextIndex = (nextIndex + 1) % players.length;
+      nextPlayer = players[nextNextIndex];
+    }
 
     console.log(`次のターン: ${nextPlayer.player_nickname} (${nextPlayer.player_type})`);
 
@@ -1919,7 +2102,26 @@ function GameContent() {
 
             console.log(`フリーマンAI訪問履歴を記録: ${arrivedAirport.city} (目的地${freemanDestinationNumber}) - ${points}pt獲得`);
 
-            // 到着ポイント内訳を設定して表示
+            // 選択した体験をイベントとして作成
+            const selectedExperienceEvent: GameEvent = {
+              type: selectedType,
+              data: selectedExperience,
+            };
+
+            // その他の到着イベントを生成（フリーマンにもイベントを発生させる）
+            console.log('フリーマンAI: 到着イベントを生成中...');
+            const otherArrivalEvents = await generateArrivalEvents();
+            console.log(`フリーマンAI: 到着イベント生成完了 (${otherArrivalEvents.length}件)`);
+
+            // 選択したイベントを最初に、その後に他のイベントを追加
+            const allEvents = [selectedExperienceEvent, ...otherArrivalEvents];
+            setPendingEvents(allEvents);
+            setCurrentEventIndex(0);
+
+            // イベント画面に遷移
+            setScreenState('events');
+
+            // 到着ポイント内訳を設定
             // 注意: experiencePoints は既に調整後のポイント（points から arrivalBonus を引いた値）
             const experiencePointsAdjusted = points - arrivalBonus;
 
@@ -1940,13 +2142,9 @@ function GameContent() {
             setArrivalBreakdown(breakdown);
 
             // 少し遅延してモーダルを表示
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await new Promise((resolve) => setTimeout(resolve, 100));
             setShowArrivalBreakdown(true);
-            console.log('フリーマンAI: 到着ポイント内訳モーダルを表示');
-
-            // モーダルが閉じられるまで待機（ユーザーが「続ける」ボタンを押すまで）
-            // 注意: この待機は handleArrivalBreakdownContinue で showArrivalBreakdown が false になることで制御される
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            console.log('フリーマンAI: 到着ポイント内訳モーダルを表示（イベント数: ' + allEvents.length + '件）');
           } catch (err) {
             console.error('========================================');
             console.error('❌ フリーマンAI到着選択エラー:', err);
@@ -2174,9 +2372,17 @@ function GameContent() {
           return updatedPlayers;
         });
 
-        // 発表画面が表示されるため、ここでは待機しない
-        // 発表画面から続けるハンドラーでルーレット処理を開始する
-        return; // 一旦ここで終了
+        // 発表画面を2秒表示してから自動的に閉じる
+        console.log('フリーマンAI: 目的地発表画面を2秒表示します...');
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        console.log('フリーマンAI: 目的地発表画面を自動的に閉じます');
+        setShowFreemanDestination(false);
+        setFreemanSelectedDestination(null);
+        setFreemanName('');
+
+        // 少し待機してから次の処理へ
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
     }
 
@@ -2192,13 +2398,21 @@ function GameContent() {
 
   // フリーマンのルーレットを回す処理（目的地発表後に呼ばれる）
   const continueFreemanTurn = async () => {
+    console.log('========================================');
+    console.log('🎲 continueFreemanTurn 呼び出し');
+    console.log('現在のターンプレイヤー:', currentTurnPlayer?.player_nickname, currentTurnPlayer?.player_type);
+    console.log('フリーマンのルート:', currentTurnPlayer?.route_spaces?.length, 'マス');
+    console.log('========================================');
+
     // ルーレットを回すアニメーションを開始
     setFreemanActionMessage('🎲 ルーレットを回します...');
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // ルーレット表示
-    console.log('フリーマンAI: ルーレット表示開始');
+    console.log('フリーマンAI: ルーレット表示開始 (setFreemanRollingDice(true))');
     setFreemanRollingDice(true);
+
+    console.log('フリーマンAI: ルーレット表示フラグを設定完了');
   };
 
   // ターン情報のデバッグログ
@@ -2904,6 +3118,20 @@ function GameContent() {
           onClose={handleCloseCardEffect}
         />
       )}
+
+      {/* カード獲得アニメーション */}
+      {showCardObtained && obtainedCards.length > 0 && (() => {
+        const card = getCardById(obtainedCards[0].cardId);
+        return card ? (
+          <CardObtainedAnimation
+            card={card}
+            onClose={() => {
+              setShowCardObtained(false);
+              setObtainedCards([]);
+            }}
+          />
+        ) : null;
+      })()}
 
       {/* 到着ポイント内訳表示 */}
       {showArrivalBreakdown && arrivalBreakdown && (
