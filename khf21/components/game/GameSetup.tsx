@@ -25,7 +25,7 @@ interface GameSetupProps {
 const BGM_OPTIONS = [
   { url: BGM_URLS.GAME_START[0], name: 'フィールド音楽', description: '広大な大地を旅するイメージ' },
   { url: BGM_URLS.GAME_START[1], name: 'タウン音楽', description: '街を散策するイメージ' },
-  { url: BGM_URLS.GAME_START[2], name: 'フィールド音楽2', description: '爽やかな冒険のイメージ' },
+  { url: BGM_URLS.GAME_START[2], name: 'ハラッパ音楽', description: '爽やかな冒険のイメージ' },
 ];
 
 export default function GameSetup({ airports, onStart }: GameSetupProps) {
