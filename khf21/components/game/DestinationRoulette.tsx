@@ -27,11 +27,29 @@ export default function DestinationRoulette({
     if (!color) return null;
     switch (color) {
       case 'red':
-        return { emoji: '🔴', name: 'Red', colorClass: 'from-red-500 to-red-600' };
+        return {
+          emoji: '🔴',
+          name: '冒険者ルート',
+          colorClass: 'from-red-500 to-red-600',
+          description: 'リスクを取って栄光を掴め！',
+          features: ['先着+30pt', 'カード2倍', 'トラブル+15%']
+        };
       case 'blue':
-        return { emoji: '🔵', name: 'Blue', colorClass: 'from-blue-500 to-blue-600' };
+        return {
+          emoji: '🔵',
+          name: '文化人ルート',
+          colorClass: 'from-blue-500 to-blue-600',
+          description: '知性と教養で着実に',
+          features: ['Pt+25%', 'イベント豊富', 'スター遭遇+20%']
+        };
       case 'green':
-        return { emoji: '🟢', name: 'Green', colorClass: 'from-green-500 to-green-600' };
+        return {
+          emoji: '🟢',
+          name: '探求者ルート',
+          colorClass: 'from-green-500 to-green-600',
+          description: '秘境で心と体を癒す',
+          features: ['発見+20pt', 'レアカード', 'トラブル-10%']
+        };
     }
   };
 
@@ -119,10 +137,24 @@ export default function DestinationRoulette({
               </div>
               {groupInfo && (
                 <div className={`inline-block bg-gradient-to-r ${groupInfo.colorClass} text-white px-3 py-1 rounded-full text-xs font-bold`}>
-                  {groupInfo.emoji} {groupInfo.name} Group
+                  {groupInfo.emoji} {groupInfo.name}
                 </div>
               )}
             </div>
+
+            {/* 選択したルートの説明 */}
+            {groupInfo && (
+              <div className="mt-2 mb-3 bg-gray-800/60 rounded-lg p-3 border border-gray-700">
+                <div className="text-sm text-gray-300 mb-1.5">{groupInfo.description}</div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {groupInfo.features.map((feature, idx) => (
+                    <span key={idx} className="text-xs px-2 py-0.5 bg-white/10 rounded-full text-white">
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <h2 className="text-2xl font-bold text-white neon-text mb-1">
               ✈️ DESTINATION ROULETTE
             </h2>

@@ -17,6 +17,8 @@ interface PointBreakdown {
   attractionName?: string;
   artName?: string;
   gourmetName?: string;
+  attractionCategory?: 'world_heritage' | 'scenic_spot' | 'landmark';
+  isWorldHeritage?: boolean; // 世界遺産かどうか
 }
 
 interface ArrivalPointsBreakdownProps {
@@ -96,17 +98,43 @@ export default function ArrivalPointsBreakdown({
 
             {/* 名所ポイント */}
             {breakdown.attractionPoints && breakdown.attractionPoints > 0 && (
-              <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+              <div className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                breakdown.isWorldHeritage || breakdown.attractionCategory === 'world_heritage'
+                  ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300'
+                  : 'bg-purple-50 border-purple-200'
+              }`}>
                 <div className="flex items-center gap-3">
-                  <div className="text-3xl">🏛️</div>
+                  <div className="text-3xl">
+                    {breakdown.isWorldHeritage || breakdown.attractionCategory === 'world_heritage' ? '🏆' : '🏛️'}
+                  </div>
                   <div>
-                    <div className="font-bold text-gray-800">名所訪問</div>
+                    <div className="font-bold text-gray-800 flex items-center gap-2">
+                      {breakdown.isWorldHeritage || breakdown.attractionCategory === 'world_heritage' ? (
+                        <>
+                          <span>世界遺産訪問</span>
+                          <span className="text-xs px-2 py-0.5 bg-amber-400 text-amber-900 rounded-full font-bold">
+                            UNESCO
+                          </span>
+                        </>
+                      ) : (
+                        '名所訪問'
+                      )}
+                    </div>
                     <div className="text-xs text-gray-600">
                       {breakdown.attractionName}
                     </div>
+                    {(breakdown.isWorldHeritage || breakdown.attractionCategory === 'world_heritage') && (
+                      <div className="text-xs text-amber-700 font-semibold mt-0.5">
+                        💎 世界遺産ボーナス+50%適用済み
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="text-2xl font-bold text-purple-600">
+                <div className={`text-2xl font-bold ${
+                  breakdown.isWorldHeritage || breakdown.attractionCategory === 'world_heritage'
+                    ? 'text-amber-600'
+                    : 'text-purple-600'
+                }`}>
                   +{breakdown.attractionPoints}
                 </div>
               </div>

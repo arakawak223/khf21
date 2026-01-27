@@ -511,11 +511,23 @@ function GameContent() {
 
     console.log('目的地選択を開始: 3グループシステム');
 
+    // 占有都市マップを作成
+    const occupiedCitiesMap = new Map<string, { playerId: string; level: number }>();
+    players.forEach(p => {
+      const occupied = p.occupied_cities || [];
+      occupied.forEach((cityId: string) => {
+        occupiedCitiesMap.set(cityId, { playerId: p.id, level: 1 });
+      });
+    });
+
     // 3つのランダムグループを生成
     const groups = generateRandomGroups(
       airports,
       currentAirport.id,
-      visitedAirportIds
+      visitedAirportIds,
+      players,
+      currentTurnPlayer?.id || '',
+      occupiedCitiesMap
     );
 
     console.log('グループ生成:', groups.map(g => `${g.emoji} ${g.count}空港`));
@@ -2282,11 +2294,23 @@ function GameContent() {
         return;
       }
 
+      // 占有都市マップを作成
+      const occupiedCitiesMap = new Map<string, { playerId: string; level: number }>();
+      players.forEach(p => {
+        const occupied = p.occupied_cities || [];
+        occupied.forEach((cityId: string) => {
+          occupiedCitiesMap.set(cityId, { playerId: p.id, level: 1 });
+        });
+      });
+
       // 3つのランダムグループを生成
       const groups = generateRandomGroups(
         airports,
         freemanCurrentAirport?.id || currentAirport!.id,
-        visitedAirportIds
+        visitedAirportIds,
+        players,
+        freemanPlayer?.id || '',
+        occupiedCitiesMap
       );
 
       // フリーマンが最も空港数が多いグループを選択

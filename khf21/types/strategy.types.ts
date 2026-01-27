@@ -89,8 +89,44 @@ export interface AirportGroup {
   color: GroupColor;
   colorName: string;  // 'Red', 'Blue', 'Green'
   emoji: string;      // '🔴', '🔵', '🟢'
+  description: string; // グループの説明
   airports: Airport[];
   count: number;      // Number of airports in group
+  seasonBonus?: SeasonBonus; // 季節ボーナス情報
+  effects?: RouteEffects; // ルート効果
+}
+
+// ルート効果
+export interface RouteEffects {
+  firstArrivalBonus: number; // 先着ボーナス（ポイント）
+  specialCardRate: number; // 特別カード出現率倍率
+  rareCardRate: number; // レアカード出現率倍率
+  troubleRateModifier: number; // トラブル発生率修正（%）
+  impressedPointsModifier: number; // impressedポイント修正（%）
+  eventRates: {
+    attraction?: number; // 名所イベント確率修正（%）
+    star?: number; // スター遭遇確率修正（%）
+    art?: number; // アート鑑賞確率修正（%）
+    gourmet?: number; // グルメ体験確率修正（%）
+    discovery?: number; // 大発見イベント確率（%）
+  };
+  exclusiveCards?: string[]; // 専用カードID
+}
+
+// 季節ボーナス
+export interface SeasonBonus {
+  season: 'spring' | 'summer' | 'autumn' | 'winter';
+  bonusDescription: string;
+  bonusMultiplier: number; // ボーナス倍率（1.0 = なし、1.2 = 20%増）
+}
+
+// 空港の特性（動的計算用）
+export interface AirportCharacteristics {
+  airportId: string;
+  popularity: number; // 人気度（0-100）
+  adventureLevel: number; // 冒険度（0-100）
+  culturalValue: number; // 文化価値（0-100）
+  resortLevel: number; // リゾート度（0-100）
 }
 
 // ===============================

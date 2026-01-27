@@ -23,6 +23,17 @@ export default function AttractionEvent({
     return labels[category] || '名所';
   };
 
+  // 世界遺産の場合はポイントを1.5倍にする
+  const calculatePoints = () => {
+    const basePoints = attraction.impressed_points;
+    if (attraction.category === 'world_heritage') {
+      return Math.round(basePoints * 1.5);
+    }
+    return basePoints;
+  };
+
+  const finalPoints = calculatePoints();
+
   return (
     <EventModal
       isOpen={isOpen}
@@ -30,8 +41,8 @@ export default function AttractionEvent({
       title={attraction.name_ja}
       subtitle={`${attraction.city}, ${attraction.country}`}
       imageUrl={attraction.image_url || undefined}
-      emoji="🏛️"
-      points={{ impressed: attraction.impressed_points }}
+      emoji={attraction.category === 'world_heritage' ? '🏆' : '🏛️'}
+      points={{ impressed: finalPoints }}
     >
       <div className="space-y-2">
         {/* カテゴリバッジ */}
@@ -48,6 +59,26 @@ export default function AttractionEvent({
           </div>
         )}
 
+        {/* 世界遺産の特別表示 */}
+        {attraction.category === 'world_heritage' && (
+          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-lg p-3 border-2 border-amber-400">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">🏆</span>
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                UNESCO世界遺産
+              </p>
+            </div>
+            <p className="text-xs text-amber-900 dark:text-amber-100 leading-snug mb-2">
+              人類共通の宝として、その顕著な普遍的価値が認められています。この貴重な文化遺産・自然遺産を訪れることができるのは大変名誉なことです。
+            </p>
+            <div className="bg-white/60 dark:bg-black/20 rounded px-2 py-1">
+              <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+                💎 世界遺産ボーナス: ポイント+50%
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 体験メッセージ */}
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 border-l-4 border-purple-500">
           <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">
@@ -55,7 +86,7 @@ export default function AttractionEvent({
           </p>
           <p className="text-xs text-gray-700 dark:text-gray-300 leading-snug">
             {attraction.category === 'world_heritage' &&
-              'この世界遺産の壮大さと歴史の重みを感じました。何世紀も前の人々の知恵と技術に圧倒されます。'}
+              'この世界遺産の壮大さと歴史の重みを感じました。何世紀も前の人々の知恵と技術に圧倒され、その価値を深く理解することができました。後世に残すべき人類の宝です。'}
             {attraction.category === 'scenic_spot' &&
               'この絶景は言葉では表現できないほど美しく、心が洗われるようです。大自然の力強さと繊細さを感じます。'}
             {attraction.category === 'landmark' &&

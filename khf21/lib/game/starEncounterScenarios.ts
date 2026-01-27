@@ -1,6 +1,6 @@
 // 著名人との出会いシチュエーション
 
-export type EncounterLocation = 'flight' | 'airport_lounge' | 'airport_gate' | 'hotel' | 'restaurant';
+export type EncounterLocation = 'flight' | 'airport_lounge' | 'airport_gate' | 'hotel' | 'restaurant' | 'tourist_attraction' | 'bar' | 'street' | 'museum' | 'cafe' | 'theater';
 
 export interface StarEncounterScenario {
   location: EncounterLocation;
@@ -132,6 +132,162 @@ const restaurantScenarios: string[] = [
 ];
 
 /**
+ * 観光地での著名人との出会いシチュエーション
+ */
+const touristAttractionScenarios: string[] = [
+  '有名な観光名所で写真を撮っていたら、後ろに{name}が並んでいました。',
+  '世界遺産の入口で{name}がガイドブックを見ています。',
+  '展望台で景色を眺めていたら、{name}も同じ場所で撮影していました。',
+  '有名な建造物の前で{name}がファンに囲まれていました。',
+  '観光バスのツアーで{name}と同じグループになりました。',
+  '歴史的建造物の中で、{name}が熱心に説明を聞いています。',
+  '人気の記念碑の前で{name}がポーズを取っていました。',
+  '庭園を散策していたら、{name}が写真撮影をしていました。',
+  '寺院の境内で{name}がお参りをしています。',
+  '城の見学ツアーで{name}と一緒になりました。',
+  '遺跡の前で{name}が感動している様子でした。',
+  '橋の上で夕日を眺めていたら、{name}も隣にいました。',
+  '灯台の展望デッキで{name}が海を見つめています。',
+  '滝の展望スポットで{name}が自撮りをしていました。',
+  '噴水広場で{name}がベンチに座って休憩しています。',
+  '有名な彫像の前で{name}とばったり会いました。',
+  '古い街並みを歩いていたら、{name}が路地から出てきました。',
+  'ケーブルカーで{name}と相席になりました。',
+  '展望タワーのエレベーターで{name}と一緒になりました。',
+  '有名な階段を登っていたら、{name}が降りてきました。',
+];
+
+/**
+ * バーでの著名人との出会いシチュエーション
+ */
+const barScenarios: string[] = [
+  'ホテルのバーカウンターで{name}が一人でカクテルを飲んでいます。',
+  'ジャズバーの奥の席に{name}が座っていました。',
+  'ルーフトップバーで{name}が夜景を眺めながらお酒を楽しんでいます。',
+  'バーのカウンターで{name}がバーテンダーと会話しています。',
+  'ワインバーで{name}がワインの試飲をしています。',
+  'ウイスキーバーで{name}が珍しいボトルを注文していました。',
+  'カクテルバーの入口で{name}と鉢合わせしました。',
+  'バーのトイレの列で{name}と並びました。',
+  'バーのライブステージの近くで{name}が音楽を楽しんでいます。',
+  'バーのソファ席で{name}が友人と談笑しています。',
+  'バーのハッピーアワーで{name}がリラックスしています。',
+  'スポーツバーで{name}が試合観戦をしています。',
+  'シガーバーで{name}が葉巻を楽しんでいます。',
+  'ホテルのラウンジバーで{name}が待ち合わせをしています。',
+  'バーのビリヤード台の近くで{name}がゲームを見ています。',
+  'バーの個室エリアから{name}が出てきました。',
+  'バーのダーツコーナーで{name}が遊んでいます。',
+  '隠れ家的なバーで{name}を見かけました。',
+  'バーの予約席で{name}がゆったりとした時間を過ごしています。',
+  'バーの喫煙エリアで{name}とすれ違いました。',
+];
+
+/**
+ * 街中での著名人との出会いシチュエーション
+ */
+const streetScenarios: string[] = [
+  '繁華街を歩いていたら、{name}がショッピングをしていました。',
+  '歩行者天国で{name}が散歩をしています。',
+  '有名な通りで{name}がウィンドウショッピングをしています。',
+  '横断歩道で信号待ちをしていたら、{name}が隣にいました。',
+  '市場を見て回っていたら、{name}も買い物をしていました。',
+  '屋台で食べ物を買っていたら、{name}が同じ店で注文していました。',
+  'フリーマーケットで{name}が掘り出し物を探しています。',
+  '公園のベンチで{name}が休憩しています。',
+  '街角のアイスクリーム屋で{name}が並んでいました。',
+  '書店の中で{name}が本を選んでいます。',
+  'レコードショップで{name}がアルバムを探しています。',
+  '花屋の前で{name}が花を見ています。',
+  'タクシー乗り場で{name}と一緒に待ちました。',
+  '地下鉄の駅で{name}とすれ違いました。',
+  'バス停で{name}が待っています。',
+  '駐車場で{name}が車に乗り込もうとしています。',
+  'コンビニエンスストアで{name}が買い物をしていました。',
+  '噴水のある広場で{name}がベンチに座っています。',
+  '観光案内所で{name}が地図を見ています。',
+  '自転車をレンタルするスポットで{name}と一緒になりました。',
+];
+
+/**
+ * 美術館・博物館での著名人との出会いシチュエーション
+ */
+const museumScenarios: string[] = [
+  '美術館の展示室で{name}が絵画を鑑賞しています。',
+  '博物館の入口で{name}がチケットを買っていました。',
+  '美術館の有名な作品の前に{name}が立ち止まっています。',
+  '博物館のオーディオガイドを聞きながら、{name}も同じ展示を見ています。',
+  '美術館のミュージアムショップで{name}がお土産を選んでいます。',
+  '博物館のカフェで{name}が休憩しています。',
+  '美術館の特別展で{name}と一緒になりました。',
+  '博物館のトイレの列で{name}と並びました。',
+  '美術館のベンチで{name}が作品について考え込んでいます。',
+  '博物館の化石展示の前で{name}が感動しています。',
+  '美術館の彫刻庭園で{name}が散策しています。',
+  '博物館のプラネタリウムで{name}と隣の席になりました。',
+  '美術館のガイドツアーで{name}が参加していました。',
+  '博物館のワークショップで{name}を見かけました。',
+  '美術館のロビーで{name}が友人と待ち合わせしています。',
+  '博物館の図書室で{name}が資料を調べています。',
+  '美術館の階段で{name}とすれ違いました。',
+  '博物館の恐竜展示の前で{name}が写真を撮っています。',
+  '美術館のクロークで{name}が荷物を預けていました。',
+  '博物館の出口付近で{name}が感想を語っていました。',
+];
+
+/**
+ * カフェでの著名人との出会いシチュエーション
+ */
+const cafeScenarios: string[] = [
+  'おしゃれなカフェのテラス席に{name}が座っています。',
+  'カフェのカウンターでコーヒーを注文していたら、{name}が隣に来ました。',
+  'カフェの窓際の席で{name}が読書をしています。',
+  'カフェでラテアートのある飲み物を受け取っていたら、{name}も注文していました。',
+  'カフェのWi-Fiを使っていたら、{name}も仕事をしています。',
+  'カフェのトイレの列で{name}と待ちました。',
+  'カフェのソファ席で{name}がリラックスしています。',
+  'カフェの相席になり、相手が{name}でした。',
+  'カフェのケーキショーケースの前で{name}がデザートを選んでいます。',
+  'カフェのテイクアウトカウンターで{name}が注文しています。',
+  'カフェの入口で{name}と鉢合わせしました。',
+  'カフェの中庭で{name}がコーヒーを飲んでいます。',
+  'カフェのブックシェルフで{name}が本を手に取っています。',
+  'カフェのレジで{name}が支払いをしていました。',
+  'カフェのペット同伴席で{name}が犬と一緒にいます。',
+  '深夜営業のカフェで{name}が一人で過ごしています。',
+  'カフェのオープンテラスで{name}が外の空気を楽しんでいます。',
+  'カフェのイベントスペースで{name}がライブを見ています。',
+  'カフェのギャラリースペースで{name}が展示を見ています。',
+  'カフェの喫煙席で{name}を見かけました。',
+];
+
+/**
+ * 劇場・映画館での著名人との出会いシチュエーション
+ */
+const theaterScenarios: string[] = [
+  '劇場のロビーで{name}が開演を待っています。',
+  '映画館のポップコーン売り場で{name}が並んでいました。',
+  '劇場の席で{name}が隣に座りました。',
+  '映画館のトイレの列で{name}と並びました。',
+  '劇場の休憩時間に{name}がロビーを歩いています。',
+  '映画館の上映前に{name}が座席を探しています。',
+  '劇場の出口で{name}が感動した様子で出てきました。',
+  '映画館のVIPシートで{name}がリクライニングしています。',
+  '劇場のバルコニー席で{name}が観劇しています。',
+  '映画館のIMAXシアターで{name}と近くの席になりました。',
+  '劇場のドリンクバーで{name}が飲み物を取っています。',
+  '映画館のチケットカウンターで{name}がチケットを買っていました。',
+  '劇場の楽屋口で{name}が関係者と話しています。',
+  '映画館の試写会で{name}を見かけました。',
+  '劇場のクロークで{name}がコートを預けていました。',
+  '映画館の特別上映で{name}が挨拶をしていました。',
+  '劇場のプレミア公演で{name}が観客として来ていました。',
+  '映画館の上映後のQ&Aセッションで{name}が質問していました。',
+  '劇場の売店で{name}がグッズを買っています。',
+  '映画館のペアシートで{name}が隣に座りました。',
+];
+
+/**
  * 旧友・恩師との再会シチュエーション（機内）
  */
 const nostalgiaMeetingsFlightScenarios: string[] = [
@@ -251,6 +407,24 @@ export function getStarEncounterScenario(
     case 'restaurant':
       scenarios = restaurantScenarios;
       break;
+    case 'tourist_attraction':
+      scenarios = touristAttractionScenarios;
+      break;
+    case 'bar':
+      scenarios = barScenarios;
+      break;
+    case 'street':
+      scenarios = streetScenarios;
+      break;
+    case 'museum':
+      scenarios = museumScenarios;
+      break;
+    case 'cafe':
+      scenarios = cafeScenarios;
+      break;
+    case 'theater':
+      scenarios = theaterScenarios;
+      break;
     default:
       scenarios = flightScenarios;
   }
@@ -277,22 +451,34 @@ export function getFlightStarEncounter(starName: string, starNameJa: string): St
 }
 
 /**
- * 到着時（空港ラウンジ）での著名人との出会いシチュエーションを取得
+ * 到着時での著名人との出会いシチュエーションを取得
+ * より多様なロケーションで出会うようになりました！
  */
 export function getArrivalStarEncounter(starName: string, starNameJa: string): StarEncounterScenario {
-  // 到着時は空港ラウンジ、ゲート、ホテル、レストランのいずれか
-  // よりバラエティに富んだシチュエーションを提供
+  // 到着時は多様な場所での出会いを提供
   const rand = Math.random();
   let location: EncounterLocation;
 
-  if (rand < 0.25) {
-    location = 'airport_lounge';  // 25% - 空港ラウンジ
-  } else if (rand < 0.45) {
-    location = 'airport_gate';    // 20% - 搭乗ゲート
-  } else if (rand < 0.70) {
-    location = 'hotel';            // 25% - ホテル
+  if (rand < 0.10) {
+    location = 'airport_lounge';      // 10% - 空港ラウンジ
+  } else if (rand < 0.15) {
+    location = 'airport_gate';        // 5% - 搭乗ゲート
+  } else if (rand < 0.28) {
+    location = 'hotel';                // 13% - ホテル
+  } else if (rand < 0.40) {
+    location = 'restaurant';           // 12% - レストラン
+  } else if (rand < 0.55) {
+    location = 'tourist_attraction';   // 15% - 観光地（新）
+  } else if (rand < 0.68) {
+    location = 'bar';                  // 13% - バー（新）
+  } else if (rand < 0.78) {
+    location = 'street';               // 10% - 街中（新）
+  } else if (rand < 0.87) {
+    location = 'museum';               // 9% - 美術館/博物館（新）
+  } else if (rand < 0.94) {
+    location = 'cafe';                 // 7% - カフェ（新）
   } else {
-    location = 'restaurant';       // 30% - レストラン
+    location = 'theater';              // 6% - 劇場/映画館（新）
   }
 
   return getStarEncounterScenario(location, starName, starNameJa);

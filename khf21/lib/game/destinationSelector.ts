@@ -2,7 +2,110 @@
 
 import type { Airport } from '@/types/database.types';
 import type { GamePlayer } from '@/types/multiplayer.types';
-import type { DestinationCandidate, DestinationSpecialEffect, AirportGroup, GroupColor } from '@/types/strategy.types';
+import type { DestinationCandidate, DestinationSpecialEffect, AirportGroup, GroupColor, AirportCharacteristics, RouteEffects, SeasonBonus } from '@/types/strategy.types';
+
+// ===============================
+// 空港特性評価システム
+// ===============================
+
+// 人気都市リスト（大都市、観光地）
+const POPULAR_CITIES = [
+  'tokyo', 'new york', 'london', 'paris', 'dubai', 'singapore', 'hong kong',
+  'los angeles', 'bangkok', 'istanbul', 'rome', 'barcelona', 'amsterdam',
+  'seoul', 'sydney', 'san francisco', 'las vegas', 'miami', 'toronto',
+  'kuala lumpur', 'taipei', 'osaka', 'shanghai', 'beijing', 'delhi', 'mumbai'
+];
+
+// 冒険的な目的地（山岳、ジャングル、極地、砂漠など）
+const ADVENTURE_KEYWORDS = [
+  'mountain', 'jungle', 'desert', 'arctic', 'antarctic', 'peak', 'everest',
+  'kilimanjaro', 'patagonia', 'amazon', 'sahara', 'kathmandu', 'cusco',
+  'reykjavik', 'ushuaia', 'anchorage', 'fairbanks', 'queenstown', 'interlaken',
+  'chamonix', 'zermatt', 'nepal', 'peru', 'chile', 'bolivia', 'tibet',
+  'mongolia', 'iceland', 'greenland', 'alaska', 'yukon', 'norway', 'safari'
+];
+
+// 文化・歴史都市（世界遺産、美術館都市）
+const CULTURAL_CITIES = [
+  'rome', 'athens', 'cairo', 'jerusalem', 'kyoto', 'florence', 'venice',
+  'prague', 'vienna', 'budapest', 'st petersburg', 'istanbul', 'agra',
+  'delhi', 'varanasi', 'angkor', 'siem reap', 'luang prabang', 'barcelona',
+  'madrid', 'lisbon', 'edinburgh', 'dublin', 'krakow', 'dubrovnik', 'santorini',
+  'mexico city', 'cusco', 'machu picchu', 'petra', 'marrakech', 'fez',
+  'tunis', 'damascus', 'baghdad', 'tehran', 'persepolis', 'samarkand'
+];
+
+// リゾート地（ビーチ、温泉、リラックス）
+const RESORT_KEYWORDS = [
+  'beach', 'resort', 'island', 'bali', 'maldives', 'seychelles', 'fiji',
+  'tahiti', 'hawaii', 'caribbean', 'cancun', 'phuket', 'boracay', 'santorini',
+  'mykonos', 'ibiza', 'mauritius', 'bora bora', 'palau', 'guam', 'saipan',
+  'spa', 'hot spring', 'onsen', 'aruba', 'bahamas', 'barbados', 'costa rica',
+  'turks', 'caicos', 'virgin', 'st lucia', 'antigua', 'grenada', 'dominica'
+];
+
+// 空港の特性を評価する関数
+function evaluateAirportCharacteristics(airport: Airport): AirportCharacteristics {
+  const cityLower = (airport.city || '').toLowerCase();
+  const nameLower = (airport.name || '').toLowerCase();
+  const countryLower = (airport.country || '').toLowerCase();
+  const searchText = `${cityLower} ${nameLower} ${countryLower}`;
+
+  let popularity = 30; // ベース値
+  let adventureLevel = 20; // ベース値
+  let culturalValue = 30; // ベース値
+  let resortLevel = 20; // ベース値
+
+  // 人気度の評価
+  if (POPULAR_CITIES.some(city => searchText.includes(city))) {
+    popularity = 90;
+  } else if (cityLower.length > 0) {
+    // 中規模都市
+    popularity = 50;
+  }
+
+  // 冒険度の評価
+  if (ADVENTURE_KEYWORDS.some(keyword => searchText.includes(keyword))) {
+    adventureLevel = 85;
+  }
+
+  // 文化価値の評価
+  if (CULTURAL_CITIES.some(city => searchText.includes(city))) {
+    culturalValue = 90;
+  }
+
+  // リゾート度の評価
+  if (RESORT_KEYWORDS.some(keyword => searchText.includes(keyword))) {
+    resortLevel = 85;
+  }
+
+  // 緯度に基づく調整（極地は冒険度UP）
+  const lat = Math.abs(getCoordinate(airport.latitude));
+  if (lat > 60) {
+    adventureLevel = Math.min(100, adventureLevel + 20);
+    resortLevel = Math.max(10, resortLevel - 20);
+  } else if (lat < 30) {
+    // 熱帯地域はリゾート度UP
+    resortLevel = Math.min(100, resortLevel + 15);
+  }
+
+  return {
+    airportId: airport.id,
+    popularity,
+    adventureLevel,
+    culturalValue,
+    resortLevel,
+  };
+}
+
+// 現在の季節を取得（北半球基準）
+function getCurrentSeason(): 'spring' | 'summer' | 'autumn' | 'winter' {
+  const month = new Date().getMonth() + 1; // 1-12
+  if (month >= 3 && month <= 5) return 'spring';
+  if (month >= 6 && month <= 8) return 'summer';
+  if (month >= 9 && month <= 11) return 'autumn';
+  return 'winter';
+}
 
 // 2点間の距離を計算（Haversine公式）
 function calculateDistance(
@@ -265,17 +368,19 @@ export function scoreDestination(candidate: DestinationCandidate): number {
   return score;
 }
 
-// 戦略的グループ分け（距離ベース）
+// 戦略的グループ分け（競合度 × 観光スタイル × 季節）
 export function generateRandomGroups(
   allAirports: Airport[],
   currentAirportId: string,
-  visitedAirportIds: string[]
+  visitedAirportIds: string[],
+  players?: GamePlayer[],
+  currentPlayerId?: string,
+  occupiedCities?: Map<string, { playerId: string; level: number }>
 ): AirportGroup[] {
   // 現在地の空港を取得
   const currentAirport = allAirports.find(a => a.id === currentAirportId);
   if (!currentAirport) {
     console.error('現在地の空港が見つかりません');
-    // フォールバック: 最初の空港を使用
     return generateFallbackGroups(allAirports, currentAirportId, visitedAirportIds);
   }
 
@@ -295,73 +400,183 @@ export function generateRandomGroups(
     availableAirports = allAirports.filter(airport => airport.id !== currentAirportId);
   }
 
-  // 各空港までの距離を計算
-  const airportsWithDistance = availableAirports.map(airport => {
+  // 各空港の特性を評価
+  const airportsWithCharacteristics = availableAirports.map(airport => {
     const distance = calculateDistance(
       currentLat,
       currentLng,
       getCoordinate(airport.latitude),
       getCoordinate(airport.longitude)
     );
-    return { airport, distance };
+    const characteristics = evaluateAirportCharacteristics(airport);
+
+    // 競合度を計算
+    let competitionScore = characteristics.popularity;
+    if (occupiedCities?.has(airport.id)) {
+      competitionScore += 20; // 占有されている都市は競合度UP
+    }
+    if (players && currentPlayerId) {
+      // 他プレイヤーとの距離で競合度を調整
+      const nearbyPlayers = players.filter(p => {
+        if (p.id === currentPlayerId) return false;
+        const playerSpace = p.route_spaces?.[p.current_space_number - 1];
+        if (!playerSpace) return false;
+        const distToPlayer = calculateDistance(
+          getCoordinate(airport.latitude),
+          getCoordinate(airport.longitude),
+          playerSpace.lat,
+          playerSpace.lng
+        );
+        return distToPlayer < 3000;
+      }).length;
+      competitionScore += nearbyPlayers * 15;
+    }
+
+    return {
+      airport,
+      distance,
+      characteristics,
+      competitionScore: Math.min(100, competitionScore),
+    };
   });
 
-  // 距離によって3つのグループに分類
-  // 🟢 スピード重視: 1,500-5,000km（近距離、先着ボーナス狙い）
-  // 🔵 バランス型: 5,000-10,000km（中距離、安定）
-  // 🔴 ハイリスク・ハイリターン: 10,000km以上（遠距離、高ポイント）
+  // 3つのグループに分類
+  const adventurerGroup: typeof airportsWithCharacteristics = [];
+  const culturalGroup: typeof airportsWithCharacteristics = [];
+  const explorerGroup: typeof airportsWithCharacteristics = [];
 
-  const speedGroup = airportsWithDistance.filter(a => a.distance >= 1500 && a.distance < 5000);
-  const balanceGroup = airportsWithDistance.filter(a => a.distance >= 5000 && a.distance < 10000);
-  const highRiskGroup = airportsWithDistance.filter(a => a.distance >= 10000);
+  airportsWithCharacteristics.forEach(item => {
+    const { characteristics, competitionScore } = item;
 
-  // 1500km未満の超近距離はスピードグループに追加
-  const veryNearAirports = airportsWithDistance.filter(a => a.distance < 1500);
-  speedGroup.push(...veryNearAirports);
+    // スコアリング
+    const adventurerScore = (characteristics.adventureLevel * 0.4) + (competitionScore * 0.3) + (characteristics.popularity * 0.3);
+    const culturalScore = (characteristics.culturalValue * 0.5) + (competitionScore * 0.3) + (characteristics.popularity * 0.2);
+    const explorerScore = (characteristics.resortLevel * 0.4) + ((100 - competitionScore) * 0.4) + ((100 - characteristics.popularity) * 0.2);
 
-  // グループが空の場合の処理
-  // バランスグループが空の場合、遠距離から一部を移動
-  if (balanceGroup.length === 0 && highRiskGroup.length > 3) {
-    const moved = highRiskGroup.splice(0, Math.floor(highRiskGroup.length / 2));
-    balanceGroup.push(...moved);
+    // 最も高いスコアのグループに振り分け
+    const maxScore = Math.max(adventurerScore, culturalScore, explorerScore);
+
+    if (maxScore === adventurerScore) {
+      adventurerGroup.push(item);
+    } else if (maxScore === culturalScore) {
+      culturalGroup.push(item);
+    } else {
+      explorerGroup.push(item);
+    }
+  });
+
+  // グループが偏りすぎた場合の調整
+  const totalCount = airportsWithCharacteristics.length;
+  const minGroupSize = Math.floor(totalCount * 0.2); // 最低20%
+
+  // 小さすぎるグループを調整
+  if (adventurerGroup.length < minGroupSize && totalCount > 6) {
+    const needed = minGroupSize - adventurerGroup.length;
+    const largest = [culturalGroup, explorerGroup].sort((a, b) => b.length - a.length)[0];
+    adventurerGroup.push(...largest.splice(0, needed));
+  }
+  if (culturalGroup.length < minGroupSize && totalCount > 6) {
+    const needed = minGroupSize - culturalGroup.length;
+    const largest = [adventurerGroup, explorerGroup].sort((a, b) => b.length - a.length)[0];
+    culturalGroup.push(...largest.splice(0, needed));
+  }
+  if (explorerGroup.length < minGroupSize && totalCount > 6) {
+    const needed = minGroupSize - explorerGroup.length;
+    const largest = [adventurerGroup, culturalGroup].sort((a, b) => b.length - a.length)[0];
+    explorerGroup.push(...largest.splice(0, needed));
   }
 
-  // スピードグループが空の場合、バランスから一部を移動
-  if (speedGroup.length === 0 && balanceGroup.length > 3) {
-    const moved = balanceGroup.splice(0, Math.floor(balanceGroup.length / 2));
-    speedGroup.push(...moved);
-  }
+  // 季節ボーナスを計算
+  const currentSeason = getCurrentSeason();
 
-  // ハイリスクグループが空の場合、バランスから一部を移動
-  if (highRiskGroup.length === 0 && balanceGroup.length > 3) {
-    const moved = balanceGroup.splice(Math.floor(balanceGroup.length / 2));
-    highRiskGroup.push(...moved);
-  }
+  const adventurerSeasonBonus: SeasonBonus = {
+    season: currentSeason,
+    bonusDescription: currentSeason === 'summer' ? '☀️ 夏の冒険シーズン！ボーナス+20%' : '',
+    bonusMultiplier: currentSeason === 'summer' ? 1.2 : 1.0,
+  };
+
+  const culturalSeasonBonus: SeasonBonus = {
+    season: currentSeason,
+    bonusDescription: (currentSeason === 'spring' || currentSeason === 'autumn') ? '🍂 文化祭シーズン！ボーナス+20%' : '',
+    bonusMultiplier: (currentSeason === 'spring' || currentSeason === 'autumn') ? 1.2 : 1.0,
+  };
+
+  const explorerSeasonBonus: SeasonBonus = {
+    season: currentSeason,
+    bonusDescription: currentSeason === 'winter' ? '❄️ 冬の穴場シーズン！ボーナス+20%' : '',
+    bonusMultiplier: currentSeason === 'winter' ? 1.2 : 1.0,
+  };
+
+  // ルート効果を定義
+  const adventurerEffects: RouteEffects = {
+    firstArrivalBonus: 30,
+    specialCardRate: 2.0,
+    rareCardRate: 1.0,
+    troubleRateModifier: 15,
+    impressedPointsModifier: 0,
+    eventRates: {
+      discovery: 20,
+      attraction: 10,
+    },
+    exclusiveCards: ['adventure_instinct', 'pioneer_pride'],
+  };
+
+  const culturalEffects: RouteEffects = {
+    firstArrivalBonus: 0,
+    specialCardRate: 1.0,
+    rareCardRate: 1.0,
+    troubleRateModifier: 0,
+    impressedPointsModifier: 25,
+    eventRates: {
+      art: 30,
+      star: 20,
+      attraction: 15,
+    },
+    exclusiveCards: ['artist_sensitivity', 'historian_knowledge'],
+  };
+
+  const explorerEffects: RouteEffects = {
+    firstArrivalBonus: 20,
+    specialCardRate: 1.0,
+    rareCardRate: 1.15,
+    troubleRateModifier: -10,
+    impressedPointsModifier: 0,
+    eventRates: {
+      gourmet: 30,
+    },
+    exclusiveCards: ['explorer_intuition', 'healing_spa'],
+  };
 
   const groups: AirportGroup[] = [
     {
       color: 'red' as GroupColor,
-      colorName: 'ハイリスク・ハイリターン',
+      colorName: '冒険者ルート',
       emoji: '🔴',
-      description: '遠距離・高ポイント（10,000km以上）',
-      airports: highRiskGroup.map(a => a.airport),
-      count: highRiskGroup.length,
+      description: 'リスクを取って栄光を掴め！',
+      airports: adventurerGroup.map(a => a.airport),
+      count: adventurerGroup.length,
+      seasonBonus: adventurerSeasonBonus,
+      effects: adventurerEffects,
     },
     {
       color: 'blue' as GroupColor,
-      colorName: 'バランス型',
+      colorName: '文化人ルート',
       emoji: '🔵',
-      description: '中距離・安定（5,000-10,000km）',
-      airports: balanceGroup.map(a => a.airport),
-      count: balanceGroup.length,
+      description: '知性と教養で着実に',
+      airports: culturalGroup.map(a => a.airport),
+      count: culturalGroup.length,
+      seasonBonus: culturalSeasonBonus,
+      effects: culturalEffects,
     },
     {
       color: 'green' as GroupColor,
-      colorName: 'スピード重視',
+      colorName: '探求者ルート',
       emoji: '🟢',
-      description: '近距離・連続移動（1,500-5,000km）',
-      airports: speedGroup.map(a => a.airport),
-      count: speedGroup.length,
+      description: '秘境で心と体を癒す',
+      airports: explorerGroup.map(a => a.airport),
+      count: explorerGroup.length,
+      seasonBonus: explorerSeasonBonus,
+      effects: explorerEffects,
     },
   ];
 
@@ -403,27 +618,47 @@ function generateFallbackGroups(
   const group2Size = baseSize + (remainder > 1 ? 1 : 0);
   const group3Size = baseSize;
 
+  const currentSeason = getCurrentSeason();
+
   return [
     {
       color: 'red' as GroupColor,
-      colorName: 'ハイリスク・ハイリターン',
+      colorName: '冒険者ルート',
       emoji: '🔴',
+      description: 'リスクを取って栄光を掴め！',
       airports: shuffled.slice(0, group1Size),
       count: group1Size,
+      seasonBonus: {
+        season: currentSeason,
+        bonusDescription: currentSeason === 'summer' ? '☀️ 夏の冒険シーズン！' : '',
+        bonusMultiplier: currentSeason === 'summer' ? 1.2 : 1.0,
+      },
     },
     {
       color: 'blue' as GroupColor,
-      colorName: 'バランス型',
+      colorName: '文化人ルート',
       emoji: '🔵',
+      description: '知性と教養で着実に',
       airports: shuffled.slice(group1Size, group1Size + group2Size),
       count: group2Size,
+      seasonBonus: {
+        season: currentSeason,
+        bonusDescription: (currentSeason === 'spring' || currentSeason === 'autumn') ? '🍂 文化祭シーズン！' : '',
+        bonusMultiplier: (currentSeason === 'spring' || currentSeason === 'autumn') ? 1.2 : 1.0,
+      },
     },
     {
       color: 'green' as GroupColor,
-      colorName: 'スピード重視',
+      colorName: '探求者ルート',
       emoji: '🟢',
+      description: '秘境で心と体を癒す',
       airports: shuffled.slice(group1Size + group2Size),
       count: group3Size,
+      seasonBonus: {
+        season: currentSeason,
+        bonusDescription: currentSeason === 'winter' ? '❄️ 冬の穴場シーズン！' : '',
+        bonusMultiplier: currentSeason === 'winter' ? 1.2 : 1.0,
+      },
     },
   ];
 }
