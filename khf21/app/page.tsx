@@ -26,7 +26,7 @@ export default function Home() {
               ゆめたび
             </h2>
             <p className="text-lg text-gray-600 dark:text-gray-300 mt-4">
-              ルーレットを回して飛行機と豪華客船で世界を旅しよう
+              ルーレットを回して飛行機で世界を旅しよう
             </p>
           </div>
 

@@ -1,7 +1,7 @@
 {
   "name": "夢旅（ゆめたび）",
   "short_name": "夢旅",
-  "description": "ルーレットを回して飛行機と豪華客船で世界を旅するすごろくゲーム",
+  "description": "ルーレットを回して飛行機で世界を旅するすごろくゲーム",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

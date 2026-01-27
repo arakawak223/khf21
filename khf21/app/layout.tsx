@@ -10,7 +10,7 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "夢旅（ゆめたび）",
-  description: "ルーレットを回して飛行機と豪華客船で世界を旅するすごろくゲーム",
+  description: "ルーレットを回して飛行機で世界を旅するすごろくゲーム",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
