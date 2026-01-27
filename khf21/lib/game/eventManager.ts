@@ -201,6 +201,74 @@ function generateGiverScenario(): GiverScenario {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
+    {
+      id: 'temp-5',
+      title: '迷子の子ども',
+      location_type: 'airport' as const,
+      situation_text:
+        '空港で、泣きながら親を探している小さな子どもがいます。',
+      action_options: [
+        { text: '優しく声をかけて一緒に親を探す', points: 25 },
+        { text: '空港スタッフに連絡する', points: 25 },
+        { text: '落ち着かせて待つように励ます', points: 25 },
+      ],
+      giver_points: 25,
+      feedback_text:
+        '無事に親が見つかり、親子で涙を流しながら「本当にありがとうございました！」と感謝されました。',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'temp-6',
+      title: '体調不良の乗客',
+      location_type: 'flight' as const,
+      situation_text:
+        '機内で、隣の席の人が気分が悪そうにしています。顔色が優れません。',
+      action_options: [
+        { text: 'すぐに客室乗務員を呼ぶ', points: 25 },
+        { text: '水を持ってきてあげる', points: 25 },
+        { text: '優しく声をかけて様子を聞く', points: 25 },
+      ],
+      giver_points: 25,
+      feedback_text:
+        '乗務員の迅速な対応で無事に回復しました。「あなたのおかげで助かりました」と感謝されました。',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'temp-7',
+      title: '落とし物を見つける',
+      location_type: 'airport' as const,
+      situation_text:
+        '空港の待合室で、誰かが大切そうな財布を落としているのを見つけました。',
+      action_options: [
+        { text: 'すぐに空港の遺失物センターに届ける', points: 25 },
+        { text: '周りの人に声をかけて持ち主を探す', points: 25 },
+        { text: 'アナウンスを依頼する', points: 25 },
+      ],
+      giver_points: 25,
+      feedback_text:
+        '持ち主が見つかり、大変感謝されました。「正直に届けてくれて本当にありがとう！」',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'temp-8',
+      title: '車椅子の方の手助け',
+      location_type: 'airport' as const,
+      situation_text:
+        '空港で、車椅子の方が段差の前で困っています。',
+      action_options: [
+        { text: '車椅子を押して段差を越える手伝いをする', points: 25 },
+        { text: 'スタッフを呼んで専門的な援助を依頼する', points: 25 },
+        { text: '声をかけて何か手伝えることがないか聞く', points: 25 },
+      ],
+      giver_points: 25,
+      feedback_text:
+        '「優しく声をかけてくれてありがとう。助かりました」と笑顔で感謝されました。',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
   ];
 
   return getRandomElement(scenarios) || scenarios[0];

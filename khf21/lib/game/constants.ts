@@ -191,10 +191,10 @@ export const GAME_PERIODS = [
 
 // 目的地数設定（4パターン） - 5大陸制覇を目指す世界一周ゲーム
 export const DESTINATION_COUNTS = [
+  { value: '3destinations', label: '3箇所', count: 3 },
   { value: '5destinations', label: '5箇所', count: 5 },
+  { value: '7destinations', label: '7箇所', count: 7 },
   { value: '10destinations', label: '10箇所', count: 10 },
-  { value: '20destinations', label: '20箇所', count: 20 },
-  { value: '50destinations', label: '50箇所', count: 50 },
 ] as const;
 
 // アニメーション時間（ミリ秒）

@@ -20,10 +20,10 @@ export default function Home() {
         <div className="text-center space-y-8">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-6xl font-bold text-gray-800 dark:text-gray-100">
-              世界旅行
+              夢旅
             </h1>
-            <h2 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-              すごろくゲーム
+            <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+              ゆめたび
             </h2>
             <p className="text-lg text-gray-600 dark:text-gray-300 mt-4">
               ルーレットを回して飛行機と豪華客船で世界を旅しよう
@@ -75,7 +75,7 @@ export default function Home() {
 
         {/* フッター */}
         <footer className="mt-16 text-center text-sm text-gray-600 dark:text-gray-400">
-          <p>世界旅行すごろくゲーム v1.0</p>
+          <p>夢旅（ゆめたび） v1.0</p>
         </footer>
       </div>
     </main>
