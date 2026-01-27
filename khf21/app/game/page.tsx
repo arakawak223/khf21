@@ -38,8 +38,10 @@ import {
   createGameSession,
   getUserActiveGameSession,
   getAttractionsByCountry,
+  getAttractionsByCity,
   getArtsByCity,
   getGourmetByCountry,
+  getGourmetByCity,
 } from '@/lib/game/api';
 import {
   generateArrivalEvents,
@@ -765,10 +767,11 @@ function GameContent() {
 
         console.log(`到着判定: ${isFirstToArrive ? '先着者' : '後着者'} (${currentSelections.arrivedPlayers.length + 1}番目)`);
 
+        // 🔥 重要修正: 都市レベルでデータ取得（国レベルだと同じ国の他都市が混ざる）
         const [attractions, arts, gourmets] = await Promise.all([
-          getAttractionsByCountry(actualDestinationAirport.country),
+          getAttractionsByCity(actualDestinationAirport.city),
           getArtsByCity(actualDestinationAirport.city),
-          getGourmetByCountry(actualDestinationAirport.country),
+          getGourmetByCity(actualDestinationAirport.city),
         ]);
 
         console.log(`名所データ: ${attractions.length}件`);
@@ -787,23 +790,45 @@ function GameContent() {
         }
 
         // 後続到着者の場合は選択済みアイテムを除外
-        let availableAttractions = attractions;
-        let availableArts = arts;
-        let availableGourmets = gourmets;
+        // 🔥 重要: 到着した都市に紐づくデータのみを選択
+        // まず都市でフィルタリング
+        const cityName = actualDestinationAirport.city;
+        console.log(`🏙️ 到着都市: ${cityName} - この都市のリソースのみを選択`);
+
+        let availableAttractions = attractions.filter(a => {
+          // cityフィールドを持つ場合はそれで比較、なければcountryで比較
+          const matchCity = a.city && a.city.toLowerCase() === cityName.toLowerCase();
+          return matchCity;
+        });
+
+        let availableArts = arts.filter(a => {
+          const matchCity = a.city && a.city.toLowerCase() === cityName.toLowerCase();
+          return matchCity;
+        });
+
+        let availableGourmets = gourmets.filter(g => {
+          const matchCity = g.city && g.city.toLowerCase() === cityName.toLowerCase();
+          return matchCity;
+        });
+
+        console.log(`📍 ${cityName}のリソース数: 名所${availableAttractions.length}件 / アート${availableArts.length}件 / グルメ${availableGourmets.length}件`);
 
         if (!isFirstToArrive) {
           // 選択済みアイテムを除外
           if (currentSelections.selectedAttraction) {
-            availableAttractions = attractions.filter(a => a.id !== currentSelections.selectedAttraction);
-            console.log(`名所から選択済みを除外: ${availableAttractions.length}/${attractions.length}件`);
+            const beforeCount = availableAttractions.length;
+            availableAttractions = availableAttractions.filter(a => a.id !== currentSelections.selectedAttraction);
+            console.log(`名所から選択済みを除外: ${availableAttractions.length}/${beforeCount}件`);
           }
           if (currentSelections.selectedArt) {
-            availableArts = arts.filter(a => a.id !== currentSelections.selectedArt);
-            console.log(`アートから選択済みを除外: ${availableArts.length}/${arts.length}件`);
+            const beforeCount = availableArts.length;
+            availableArts = availableArts.filter(a => a.id !== currentSelections.selectedArt);
+            console.log(`アートから選択済みを除外: ${availableArts.length}/${beforeCount}件`);
           }
           if (currentSelections.selectedGourmet) {
-            availableGourmets = gourmets.filter(g => g.id !== currentSelections.selectedGourmet);
-            console.log(`グルメから選択済みを除外: ${availableGourmets.length}/${gourmets.length}件`);
+            const beforeCount = availableGourmets.length;
+            availableGourmets = availableGourmets.filter(g => g.id !== currentSelections.selectedGourmet);
+            console.log(`グルメから選択済みを除外: ${availableGourmets.length}/${beforeCount}件`);
           }
         }
 
@@ -1877,11 +1902,11 @@ function GameContent() {
 
             console.log(`フリーマンAI到着判定: ${isFirstToArrive ? '先着者' : '後着者'} at ${arrivedAirport.city} (目的地${freemanDestinationNumber})`);
 
-            // 到着オプションを取得
+            // 到着オプションを取得（都市レベル）
             const [attractions, arts, gourmets] = await Promise.all([
-              getAttractionsByCountry(arrivedAirport.country),
+              getAttractionsByCity(arrivedAirport.city),
               getArtsByCity(arrivedAirport.city),
-              getGourmetByCountry(arrivedAirport.country),
+              getGourmetByCity(arrivedAirport.city),
             ]);
 
             console.log(`フリーマンAI: 名所${attractions.length}件, アート${arts.length}件, グルメ${gourmets.length}件`);

@@ -67,12 +67,24 @@ export async function getAirlineRoutes(originId: string) {
   return data as AirlineRoute[];
 }
 
-// 名所データ取得
+// 名所データ取得（国レベル）
 export async function getAttractionsByCountry(country: string) {
   const { data, error } = await supabase
     .from('attractions')
     .select('*')
     .eq('country', country)
+    .order('impressed_points', { ascending: false });
+
+  if (error) throw error;
+  return data as Attraction[];
+}
+
+// 名所データ取得（都市レベル）- 都市混同を防ぐ
+export async function getAttractionsByCity(city: string) {
+  const { data, error } = await supabase
+    .from('attractions')
+    .select('*')
+    .eq('city', city)
     .order('impressed_points', { ascending: false });
 
   if (error) throw error;
@@ -131,12 +143,24 @@ export async function getRandomArt() {
   return data[randomIndex] as Art;
 }
 
-// グルメデータ取得
+// グルメデータ取得（国レベル）
 export async function getGourmetByCountry(country: string) {
   const { data, error } = await supabase
     .from('gourmet')
     .select('*')
     .eq('country', country)
+    .order('impressed_points', { ascending: false });
+
+  if (error) throw error;
+  return data as Gourmet[];
+}
+
+// グルメデータ取得（都市レベル）- 都市混同を防ぐ
+export async function getGourmetByCity(city: string) {
+  const { data, error } = await supabase
+    .from('gourmet')
+    .select('*')
+    .eq('city', city)
     .order('impressed_points', { ascending: false });
 
   if (error) throw error;
