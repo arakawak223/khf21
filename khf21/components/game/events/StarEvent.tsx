@@ -9,7 +9,7 @@ interface StarEventProps {
   isOpen: boolean;
   onClose: () => void;
   star: Star;
-  location: 'airport' | 'flight' | 'hotel' | 'restaurant';
+  location: EncounterLocation;
 }
 
 export default function StarEvent({
@@ -28,39 +28,27 @@ export default function StarEvent({
     return labels[category] || 'スター';
   };
 
-  const getLocationLabel = (loc: string) => {
-    const labels: Record<string, string> = {
-      airport: '空港',
+  const getLocationLabel = (loc: EncounterLocation) => {
+    const labels: Record<EncounterLocation, string> = {
       flight: '機内',
+      airport_lounge: '空港ラウンジ',
+      airport_gate: '搭乗ゲート',
       hotel: 'ホテル',
       restaurant: 'レストラン',
+      tourist_attraction: '観光名所',
+      bar: 'バー',
+      street: '街中',
+      museum: '美術館',
+      cafe: 'カフェ',
+      theater: '劇場',
     };
     return labels[loc] || '旅先';
   };
 
   // シナリオをメモ化して、コンポーネントが再レンダリングされても同じシナリオを維持
   const encounterScenario = useMemo(() => {
-    // location を EncounterLocation 型にマッピング
-    let encounterLocation: EncounterLocation;
-    switch (location) {
-      case 'airport':
-        encounterLocation = 'airport_lounge';
-        break;
-      case 'flight':
-        encounterLocation = 'flight';
-        break;
-      case 'hotel':
-        encounterLocation = 'hotel';
-        break;
-      case 'restaurant':
-        encounterLocation = 'restaurant';
-        break;
-      default:
-        encounterLocation = 'airport_lounge';
-    }
-
     return getStarEncounterScenario(
-      encounterLocation,
+      location,
       star.name,
       star.name_ja || star.name
     );

@@ -9,6 +9,7 @@ import {
   getRandomEncouragementGratitudeScenario,
 } from './api';
 import { getRandomSpecialLifeEvent, type SpecialLifeEvent } from './specialLifeEvents';
+import { getArrivalStarEncounter, type EncounterLocation } from './starEncounterScenarios';
 import type {
   Attraction,
   Star,
@@ -26,6 +27,7 @@ export interface GameEvent {
   type: EventType;
   data: Attraction | Star | Art | Gourmet | Trouble | GiverScenario | EncouragementGratitudeScenario | SpecialLifeEvent;
   troubleResolution?: TroubleResolution;
+  starLocation?: EncounterLocation; // スター遭遇の場所（到着時は多様な場所、移動中は'flight'）
 }
 
 /**
@@ -39,7 +41,13 @@ export async function generateArrivalEvents(): Promise<GameEvent[]> {
   if (shouldEventOccur(EVENT_PROBABILITY.STAR)) {
     const star = await getRandomStar();
     if (star) {
-      events.push({ type: 'star', data: star });
+      // 到着時は多様な場所でのスター遭遇（空港以外の場所も含む）
+      const encounterLocation = determineArrivalEncounterLocation();
+      events.push({
+        type: 'star',
+        data: star,
+        starLocation: encounterLocation
+      });
     }
   }
 
@@ -54,6 +62,24 @@ export async function generateArrivalEvents(): Promise<GameEvent[]> {
 }
 
 /**
+ * 到着時のスター遭遇場所を決定（starEncounterScenarios.tsのgetArrivalStarEncounterと同じ確率分布）
+ */
+function determineArrivalEncounterLocation(): EncounterLocation {
+  const rand = Math.random();
+
+  if (rand < 0.10) return 'airport_lounge';      // 10%
+  else if (rand < 0.15) return 'airport_gate';   // 5%
+  else if (rand < 0.28) return 'hotel';          // 13%
+  else if (rand < 0.40) return 'restaurant';     // 12%
+  else if (rand < 0.55) return 'tourist_attraction'; // 15%
+  else if (rand < 0.68) return 'bar';            // 13%
+  else if (rand < 0.78) return 'street';         // 10%
+  else if (rand < 0.87) return 'museum';         // 9%
+  else if (rand < 0.94) return 'cafe';           // 7%
+  else return 'theater';                          // 6%
+}
+
+/**
  * 移動中にイベントを生成（機内イベント）
  */
 export async function generateTravelEvents(): Promise<GameEvent[]> {
@@ -65,7 +91,11 @@ export async function generateTravelEvents(): Promise<GameEvent[]> {
   if (eventRoll < 0.25) {
     const star = await getRandomStar();
     if (star) {
-      events.push({ type: 'star', data: star });
+      events.push({
+        type: 'star',
+        data: star,
+        starLocation: 'flight' // 移動中は必ず機内
+      });
     }
   } else if (eventRoll < 0.35) {
     // 10%: トラブルイベント

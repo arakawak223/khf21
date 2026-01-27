@@ -3026,7 +3026,7 @@ function GameContent() {
               isOpen={true}
               onClose={handleEventClose}
               star={currentEvent.data as Star}
-              location="airport"
+              location={currentEvent.starLocation || 'airport_lounge'}
             />
           )}
           {currentEvent.type === 'art' && (
