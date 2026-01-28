@@ -57,7 +57,7 @@ function evaluateAirportCharacteristics(airport: Airport): AirportCharacteristic
   let popularity = 30; // ベース値
   let adventureLevel = 20; // ベース値
   let culturalValue = 30; // ベース値
-  let resortLevel = 20; // ベース値
+  let resortLevel = 35; // ベース値（20→35に増加で緑グループを拡大）
 
   // 人気度の評価
   if (POPULAR_CITIES.some(city => searchText.includes(city))) {
@@ -82,14 +82,21 @@ function evaluateAirportCharacteristics(airport: Airport): AirportCharacteristic
     resortLevel = 90; // 85 → 90 に増加
   }
 
-  // 緯度に基づく調整（極地は冒険度UP）
+  // 緯度に基づく調整（極地は冒険度UP、低緯度はリゾート度UP）
   const lat = Math.abs(getCoordinate(airport.latitude));
   if (lat > 60) {
+    // 極地（北極圏・南極圏）
     adventureLevel = Math.min(100, adventureLevel + 20);
     resortLevel = Math.max(10, resortLevel - 20);
-  } else if (lat < 30) {
-    // 熱帯地域はリゾート度UP（より大きなボーナス）
-    resortLevel = Math.min(100, resortLevel + 20); // 15 → 20 に増加
+  } else if (lat < 23.5) {
+    // 熱帯地域（赤道〜回帰線）: 最大ボーナス
+    resortLevel = Math.min(100, resortLevel + 30);
+  } else if (lat < 35) {
+    // 亜熱帯地域: 大きなボーナス
+    resortLevel = Math.min(100, resortLevel + 20);
+  } else if (lat < 50) {
+    // 温帖地域: 小さなボーナス
+    resortLevel = Math.min(100, resortLevel + 10);
   }
 
   return {
@@ -459,7 +466,7 @@ export function generateRandomGroups(
     const culturalScore = (characteristics.culturalValue * 0.65) + (characteristics.popularity * 0.25) + (competitionScore * 0.1);
 
     // 緑（探求者）: リゾート度を最重視、穴場（低競争・低人気）を好む
-    const explorerScore = (characteristics.resortLevel * 0.65) + ((100 - competitionScore) * 0.25) + ((100 - characteristics.popularity) * 0.1);
+    const explorerScore = (characteristics.resortLevel * 0.7) + ((100 - competitionScore) * 0.2) + ((100 - characteristics.popularity) * 0.1);
 
     // 最も高いスコアのグループに振り分け
     const maxScore = Math.max(adventurerScore, culturalScore, explorerScore);
