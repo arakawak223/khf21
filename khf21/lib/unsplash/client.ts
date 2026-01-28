@@ -47,11 +47,14 @@ export async function getHeritageImage(query: string): Promise<string | null> {
 }
 
 /**
- * Unsplashのプレースホルダー画像URLを生成
- * APIキーがなくても使用可能（ただし品質は劣る）
+ * プレースホルダー画像URLを生成
+ * より確実に画像を表示するため、複数のソースを使用
  */
 export function getPlaceholderImage(query: string, width: number = 800, height: number = 600): string {
-  return `https://source.unsplash.com/${width}x${height}/?${encodeURIComponent(query)},heritage,landmark`;
+  // Picsum Photos（Lorem Picsumの代替、安定したプレースホルダー画像サービス）
+  // ランダム画像を返すため、世界遺産らしい画像になるとは限らないが、確実に表示される
+  const seed = query.toLowerCase().replace(/\s+/g, '-');
+  return `https://picsum.photos/seed/${seed}/${width}/${height}`;
 }
 
 /**

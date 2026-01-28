@@ -833,19 +833,33 @@ function GameContent() {
         }
 
         // 各カテゴリから選択
-        // データがない場合は、この地域用の仮データを生成
-        let randomAttraction = availableAttractions.length > 0
-          ? availableAttractions[Math.floor(Math.random() * availableAttractions.length)]
-          : {
-              id: 'temp-attraction',
-              name: `${actualDestinationAirport.city}の名所`,
-              name_ja: `${actualDestinationAirport.city}の名所`,
-              country: actualDestinationAirport.country,
-              impressed_points: 50,
-              description: `${actualDestinationAirport.city}を代表する素晴らしい観光地です。`,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            } as Attraction;
+        // 🏆 世界遺産を優先的に選択（70%の確率）
+        let randomAttraction: Attraction;
+        if (availableAttractions.length > 0) {
+          const worldHeritages = availableAttractions.filter(a => a.category === 'world_heritage');
+          const shouldSelectWorldHeritage = worldHeritages.length > 0 && Math.random() < 0.7;
+
+          if (shouldSelectWorldHeritage) {
+            // 世界遺産から選択
+            randomAttraction = worldHeritages[Math.floor(Math.random() * worldHeritages.length)];
+            console.log('🏆 世界遺産を選択:', randomAttraction.name_ja);
+          } else {
+            // 通常の名所から選択
+            randomAttraction = availableAttractions[Math.floor(Math.random() * availableAttractions.length)];
+          }
+        } else {
+          // データがない場合は、この地域用の仮データを生成
+          randomAttraction = {
+            id: 'temp-attraction',
+            name: `${actualDestinationAirport.city}の名所`,
+            name_ja: `${actualDestinationAirport.city}の名所`,
+            country: actualDestinationAirport.country,
+            impressed_points: 50,
+            description: `${actualDestinationAirport.city}を代表する素晴らしい観光地です。`,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as Attraction;
+        }
 
         let randomArt = availableArts.length > 0
           ? availableArts[Math.floor(Math.random() * availableArts.length)]
