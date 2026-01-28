@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import EventModal from '../EventModal';
 import type { Attraction } from '@/types/database.types';
+import { getPlaceholderImage } from '@/lib/unsplash/client';
 
 interface AttractionEventProps {
   isOpen: boolean;
@@ -14,6 +16,16 @@ export default function AttractionEvent({
   onClose,
   attraction,
 }: AttractionEventProps) {
+  const [imageUrl, setImageUrl] = useState<string | undefined>(attraction.image_url || undefined);
+
+  // 画像URLがない場合は動的に生成
+  useEffect(() => {
+    if (!attraction.image_url && attraction.category === 'world_heritage') {
+      // Unsplashのプレースホルダー画像を使用
+      const fallbackUrl = getPlaceholderImage(attraction.name, 800, 600);
+      setImageUrl(fallbackUrl);
+    }
+  }, [attraction]);
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
       world_heritage: '世界遺産',
@@ -40,9 +52,10 @@ export default function AttractionEvent({
       onClose={onClose}
       title={attraction.name_ja}
       subtitle={`${attraction.city}, ${attraction.country}`}
-      imageUrl={attraction.image_url || undefined}
+      imageUrl={imageUrl}
       emoji={attraction.category === 'world_heritage' ? '🏆' : '🏛️'}
       points={{ impressed: finalPoints }}
+      isWorldHeritage={attraction.category === 'world_heritage'}
     >
       <div className="space-y-2">
         {/* カテゴリバッジ */}

@@ -18,6 +18,7 @@ interface EventModalProps {
   };
   closeButtonText?: string;
   showPoints?: boolean;
+  isWorldHeritage?: boolean; // 世界遺産フラグ
 }
 
 export default function EventModal({
@@ -31,8 +32,12 @@ export default function EventModal({
   points,
   closeButtonText = '次へ',
   showPoints = true,
+  isWorldHeritage = false,
 }: EventModalProps) {
   if (!isOpen) return null;
+
+  // 世界遺産の場合は画像を大きく表示
+  const imageHeight = isWorldHeritage ? 'h-64 md:h-80' : 'h-32';
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
@@ -40,9 +45,9 @@ export default function EventModal({
         <div className="p-4 space-y-2">
           {/* ヘッダー */}
           <div className="text-center space-y-1">
-            {emoji && <div className="text-4xl">{emoji}</div>}
+            {emoji && !imageUrl && <div className="text-4xl">{emoji}</div>}
             {imageUrl && (
-              <div className="w-full h-32 relative rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+              <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 shadow-lg`}>
                 <img
                   src={imageUrl}
                   alt={title}
@@ -51,6 +56,13 @@ export default function EventModal({
                     e.currentTarget.style.display = 'none';
                   }}
                 />
+                {/* 世界遺産バッジをオーバーレイ */}
+                {isWorldHeritage && (
+                  <div className="absolute top-2 right-2 bg-amber-500 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
+                    <span>🏆</span>
+                    <span>世界遺産</span>
+                  </div>
+                )}
               </div>
             )}
             <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">
