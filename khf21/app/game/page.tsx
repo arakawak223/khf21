@@ -1067,16 +1067,17 @@ function GameContent() {
 
       // 目的地番号ごとに先着判定（空港ではなく目的地順番で判定）
       isFirstToArrive = !firstArrivalByDestinationNumber[currentDestinationNumber];
+      console.log(`[先着判定] 人間プレイヤー - 目的地${currentDestinationNumber}: isFirstToArrive = ${isFirstToArrive}`);
 
       if (isFirstToArrive) {
-        // 先着者を記録
-        setFirstArrivalByDestinationNumber({
-          ...firstArrivalByDestinationNumber,
+        // 先着者を記録（関数型更新で確実に記録）
+        setFirstArrivalByDestinationNumber(prev => ({
+          ...prev,
           [currentDestinationNumber]: currentTurnPlayer.id,
-        });
-        console.log(`目的地${currentDestinationNumber}の先着者: ${currentTurnPlayer.player_nickname}`);
+        }));
+        console.log(`✅ 目的地${currentDestinationNumber}の先着者: ${currentTurnPlayer.player_nickname}`);
       } else {
-        console.log(`目的地${currentDestinationNumber}の後着者（先着者: ${firstArrivalByDestinationNumber[currentDestinationNumber]}）`);
+        console.log(`❌ 目的地${currentDestinationNumber}の後着者（先着者: ${firstArrivalByDestinationNumber[currentDestinationNumber]}）`);
       }
 
       rank = currentSelections.arrivedPlayers.length + 1;
@@ -1904,12 +1905,12 @@ function GameContent() {
             const isFirstToArrive = !firstArrivalByDestinationNumber[freemanDestinationNumber];
 
             if (isFirstToArrive) {
-              // 先着者を記録
-              setFirstArrivalByDestinationNumber({
-                ...firstArrivalByDestinationNumber,
+              // 先着者を記録（関数型更新で確実に記録）
+              setFirstArrivalByDestinationNumber(prev => ({
+                ...prev,
                 [freemanDestinationNumber]: freemanPlayer.id,
-              });
-              console.log(`フリーマンAI: 目的地${freemanDestinationNumber}の先着者`);
+              }));
+              console.log(`フリーマンAI: 目的地${freemanDestinationNumber}の先着者として記録`);
             } else {
               console.log(`フリーマンAI: 目的地${freemanDestinationNumber}の後着者（先着者: ${firstArrivalByDestinationNumber[freemanDestinationNumber]}）`);
             }
@@ -2053,8 +2054,9 @@ function GameContent() {
 
             // 先着ボーナスポイントを計算（移動距離はroute_spacesから推定）
             let arrivalBonus = 0;
+            console.log(`[先着判定] 目的地${freemanDestinationNumber}: isFirstToArrive = ${isFirstToArrive}`);
             if (isFirstToArrive) {
-              const travelDistanceEstimate = freemanPlayer.route_spaces.length * 500; // 500km/マス
+              const travelDistanceEstimate = (freemanPlayer.route_spaces?.length || 1) * 500; // 500km/マス
               if (travelDistanceEstimate < 500) {
                 arrivalBonus = 100;
               } else if (travelDistanceEstimate < 1000) {
@@ -2062,9 +2064,12 @@ function GameContent() {
               } else {
                 arrivalBonus = 200;
               }
-              console.log(`フリーマンAI先着ボーナス: ${arrivalBonus}pt (推定距離: ${travelDistanceEstimate}km)`);
+              console.log(`✅ フリーマンAI先着ボーナス: ${arrivalBonus}pt (推定距離: ${travelDistanceEstimate}km, 目的地${freemanDestinationNumber})`);
               points += arrivalBonus; // 選択ポイントに加算
               setFreemanActionMessage(`🎉 先着! +${arrivalBonus}pt ボーナス`);
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            } else {
+              console.log(`❌ フリーマンAI: 先着ボーナスなし（後着者、目的地${freemanDestinationNumber}）`);
             }
 
             // 選択を記録
@@ -2153,6 +2158,8 @@ function GameContent() {
               visitedAt: new Date().toISOString(),
             };
 
+            console.log(`[ポイント加算] フリーマン - 体験:${points - arrivalBonus}pt, 先着:${arrivalBonus}pt, 合計:${points}pt`);
+
             setPlayers((prevPlayers) => {
               const finalPlayers = prevPlayers.map((p) =>
                 p.id === freemanPlayer.id
@@ -2168,6 +2175,12 @@ function GameContent() {
                     }
                   : p
               );
+
+              // ポイント加算を確認
+              const updatedFreeman = finalPlayers.find(p => p.id === freemanPlayer.id);
+              if (updatedFreeman) {
+                console.log(`[ポイント加算完了] フリーマン total_points: ${freemanPlayer.total_points} → ${updatedFreeman.total_points} (+${points}pt)`);
+              }
 
               // currentTurnPlayerも更新
               const updatedFreemanPlayer = finalPlayers.find(p => p.id === freemanPlayer.id);
