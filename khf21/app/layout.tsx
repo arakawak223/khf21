@@ -10,7 +10,7 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "夢旅ライトフライヤー２１",
-  description: "ルーレットを回して飛行機で世界を旅するすごろくゲーム",
+  description: "世界初の飛行機「ライトフライヤー１」から進化した21世紀版ライトフライヤーで、世界の空を駆け巡る冒険すごろくゲーム",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

@@ -23,10 +23,11 @@ export default function Home() {
               夢旅ライトフライヤー２１
             </h1>
             <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-              世界を飛び回る冒険
+              世界初の飛行機から進化した21世紀の翼
             </h2>
             <p className="text-lg text-gray-600 dark:text-gray-300 mt-4">
-              ルーレットを回して飛行機で世界を旅しよう
+              ライト兄弟の「ライトフライヤー１」のおかげで実現した空の旅。<br />
+              21世紀版ライトフライヤーで世界の空を駆け巡ろう！
             </p>
           </div>
 
