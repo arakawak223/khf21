@@ -41,7 +41,10 @@ const RESORT_KEYWORDS = [
   'tahiti', 'hawaii', 'caribbean', 'cancun', 'phuket', 'boracay', 'santorini',
   'mykonos', 'ibiza', 'mauritius', 'bora bora', 'palau', 'guam', 'saipan',
   'spa', 'hot spring', 'onsen', 'aruba', 'bahamas', 'barbados', 'costa rica',
-  'turks', 'caicos', 'virgin', 'st lucia', 'antigua', 'grenada', 'dominica'
+  'turks', 'caicos', 'virgin', 'st lucia', 'antigua', 'grenada', 'dominica',
+  // 追加のリゾート地11箇所
+  'zanzibar', 'lombok', 'langkawi', 'koh samui', 'goa', 'belize',
+  'french polynesia', 'new caledonia', 'cook islands', 'vanuatu', 'samoa'
 ];
 
 // 空港の特性を評価する関数
@@ -76,7 +79,7 @@ function evaluateAirportCharacteristics(airport: Airport): AirportCharacteristic
 
   // リゾート度の評価
   if (RESORT_KEYWORDS.some(keyword => searchText.includes(keyword))) {
-    resortLevel = 85;
+    resortLevel = 90; // 85 → 90 に増加
   }
 
   // 緯度に基づく調整（極地は冒険度UP）
@@ -85,8 +88,8 @@ function evaluateAirportCharacteristics(airport: Airport): AirportCharacteristic
     adventureLevel = Math.min(100, adventureLevel + 20);
     resortLevel = Math.max(10, resortLevel - 20);
   } else if (lat < 30) {
-    // 熱帯地域はリゾート度UP
-    resortLevel = Math.min(100, resortLevel + 15);
+    // 熱帯地域はリゾート度UP（より大きなボーナス）
+    resortLevel = Math.min(100, resortLevel + 20); // 15 → 20 に増加
   }
 
   return {
@@ -448,10 +451,15 @@ export function generateRandomGroups(
   airportsWithCharacteristics.forEach(item => {
     const { characteristics, competitionScore } = item;
 
-    // スコアリング
-    const adventurerScore = (characteristics.adventureLevel * 0.4) + (competitionScore * 0.3) + (characteristics.popularity * 0.3);
-    const culturalScore = (characteristics.culturalValue * 0.5) + (competitionScore * 0.3) + (characteristics.popularity * 0.2);
-    const explorerScore = (characteristics.resortLevel * 0.4) + ((100 - competitionScore) * 0.4) + ((100 - characteristics.popularity) * 0.2);
+    // スコアリング（メリハリ強化版）
+    // 赤（冒険者）: 冒険度を重視、競争と人気も加味
+    const adventurerScore = (characteristics.adventureLevel * 0.6) + (competitionScore * 0.25) + (characteristics.popularity * 0.15);
+
+    // 青（文化人）: 文化価値を最重視、人気度も重要
+    const culturalScore = (characteristics.culturalValue * 0.65) + (characteristics.popularity * 0.25) + (competitionScore * 0.1);
+
+    // 緑（探求者）: リゾート度を最重視、穴場（低競争・低人気）を好む
+    const explorerScore = (characteristics.resortLevel * 0.65) + ((100 - competitionScore) * 0.25) + ((100 - characteristics.popularity) * 0.1);
 
     // 最も高いスコアのグループに振り分け
     const maxScore = Math.max(adventurerScore, culturalScore, explorerScore);
