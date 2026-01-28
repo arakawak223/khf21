@@ -159,6 +159,7 @@ class BGMManager {
   private useToneGenerator: boolean = false;
   private selectedStartBGM: string | null = null; // ゲーム開始時に選択されたBGM
   private sfxAudio: HTMLAudioElement | null = null; // 効果音用のAudioオブジェクト
+  private isPlayingFanfare: boolean = false; // ファンファーレ再生中フラグ
 
   constructor() {
     this.toneGenerator = new ToneGenerator();
@@ -241,6 +242,12 @@ class BGMManager {
    * BGMを再生
    */
   public async play(scene: BGMScene): Promise<void> {
+    // ファンファーレ再生中はBGMを変更しない
+    if (this.isPlayingFanfare) {
+      console.log('[BGMManager] Fanfare is playing, skipping BGM change');
+      return;
+    }
+
     // 同じシーンが既に再生中の場合はスキップ
     if (this.currentScene === scene) {
       return;
@@ -493,6 +500,10 @@ class BGMManager {
       return;
     }
 
+    // ファンファーレ再生開始フラグを立てる
+    this.isPlayingFanfare = true;
+    console.log('[Fanfare] Started - BGM changes blocked');
+
     // すべてのプレイヤーに新しいBGM（MP3ファイル）を使用
     console.log('[Fanfare] Playing fanfare from audio file');
 
@@ -543,19 +554,22 @@ class BGMManager {
       await new Promise(resolve => {
         fanfareAudio.onended = () => {
           this.sfxAudio = null;
-          console.log('[Fanfare] Fanfare ended');
+          this.isPlayingFanfare = false;
+          console.log('[Fanfare] Fanfare ended - BGM changes allowed');
           resolve(undefined);
         };
         // タイムアウトも設定（念のため、最大30秒）
         setTimeout(() => {
           this.sfxAudio = null;
-          console.log('[Fanfare] Fanfare timeout');
+          this.isPlayingFanfare = false;
+          console.log('[Fanfare] Fanfare timeout - BGM changes allowed');
           resolve(undefined);
         }, 30000);
       });
     } catch (error) {
       console.warn('Failed to play fanfare, using fallback:', error);
       this.sfxAudio = null;
+      this.isPlayingFanfare = false;
       this.playFanfareFallback();
     }
   }

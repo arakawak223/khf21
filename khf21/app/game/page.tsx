@@ -833,11 +833,11 @@ function GameContent() {
         }
 
         // 各カテゴリから選択
-        // 🏆 世界遺産を優先的に選択（70%の確率）
+        // 🏆 世界遺産を優先的に選択（90%の確率）
         let randomAttraction: Attraction;
         if (availableAttractions.length > 0) {
           const worldHeritages = availableAttractions.filter(a => a.category === 'world_heritage');
-          const shouldSelectWorldHeritage = worldHeritages.length > 0 && Math.random() < 0.7;
+          const shouldSelectWorldHeritage = worldHeritages.length > 0 && Math.random() < 0.9;
 
           if (shouldSelectWorldHeritage) {
             // 世界遺産から選択
