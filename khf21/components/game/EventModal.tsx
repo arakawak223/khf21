@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
@@ -34,6 +34,8 @@ export default function EventModal({
   showPoints = true,
   isWorldHeritage = false,
 }: EventModalProps) {
+  const [imageError, setImageError] = useState(false);
+
   if (!isOpen) return null;
 
   // 世界遺産の場合は画像を大きく表示
@@ -46,14 +48,19 @@ export default function EventModal({
           {/* ヘッダー */}
           <div className="text-center space-y-1">
             {emoji && !imageUrl && <div className="text-4xl">{emoji}</div>}
-            {imageUrl && (
-              <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 shadow-lg`}>
+            {imageUrl && !imageError && (
+              <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 shadow-lg`}>
                 <img
                   src={imageUrl}
                   alt={title}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                  loading="lazy"
+                  onLoad={() => {
+                    console.log(`[画像読み込み成功] ${title}: ${imageUrl}`);
+                  }}
+                  onError={() => {
+                    console.error(`[画像読み込み失敗] ${title}: ${imageUrl}`);
+                    setImageError(true);
                   }}
                 />
                 {/* 世界遺産バッジをオーバーレイ */}
@@ -63,6 +70,20 @@ export default function EventModal({
                     <span>世界遺産</span>
                   </div>
                 )}
+              </div>
+            )}
+            {/* 画像エラー時のフォールバック */}
+            {imageUrl && imageError && emoji && (
+              <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gradient-to-br from-amber-100 to-yellow-100 dark:from-amber-900 dark:to-yellow-900 shadow-lg flex items-center justify-center`}>
+                <div className="text-center">
+                  <div className="text-6xl mb-2">{emoji}</div>
+                  {isWorldHeritage && (
+                    <div className="bg-amber-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg inline-flex items-center gap-1">
+                      <span>🏆</span>
+                      <span>世界遺産</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">

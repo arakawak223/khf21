@@ -52,9 +52,19 @@ export async function getHeritageImage(query: string): Promise<string | null> {
  */
 export function getPlaceholderImage(query: string, width: number = 800, height: number = 600): string {
   // Picsum Photos（Lorem Picsumの代替、安定したプレースホルダー画像サービス）
-  // ランダム画像を返すため、世界遺産らしい画像になるとは限らないが、確実に表示される
-  const seed = query.toLowerCase().replace(/\s+/g, '-');
-  return `https://picsum.photos/seed/${seed}/${width}/${height}`;
+  // seedパラメータで同じクエリに対して同じ画像を返す
+  const seed = query.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+  // クエリをハッシュ化して0-1000の範囲の数値に変換（一貫性のある画像選択）
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash = hash & hash; // 32bit整数に変換
+  }
+  const imageId = Math.abs(hash) % 1000;
+
+  // Picsum Photosの特定の画像IDを使用（より安定）
+  return `https://picsum.photos/id/${imageId}/${width}/${height}`;
 }
 
 /**

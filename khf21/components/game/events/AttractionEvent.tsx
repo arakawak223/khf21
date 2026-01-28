@@ -23,6 +23,7 @@ export default function AttractionEvent({
     if (!attraction.image_url && attraction.category === 'world_heritage') {
       // Unsplashのプレースホルダー画像を使用
       const fallbackUrl = getPlaceholderImage(attraction.name, 800, 600);
+      console.log(`[画像URL生成] ${attraction.name_ja}: ${fallbackUrl}`);
       setImageUrl(fallbackUrl);
     }
   }, [attraction]);
