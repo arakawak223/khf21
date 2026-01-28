@@ -68,7 +68,7 @@ import type { DestinationCandidate, CityOccupation, AirportGroup, GroupColor } f
 import GroupSelector from '@/components/game/GroupSelector';
 
 // フリーマンのポイントバランス調整用倍率
-const FREEMAN_POINT_MULTIPLIER = 1.0; // フリーマンも人間プレイヤーと同じポイントを獲得（イベントも発生するため）
+const FREEMAN_POINT_MULTIPLIER = 1.2; // フリーマンの基本ポイントを1.2倍（人助けイベントと合わせてバランス調整）
 
 function GameContent() {
   const {
@@ -2021,6 +2021,32 @@ function GameContent() {
               points = Math.round(selectedGourmet.impressed_points * FREEMAN_POINT_MULTIPLIER);
               console.log(`フリーマンAI: グルメ選択 - ${selectedGourmet.name_ja || selectedGourmet.name} (+${points}pt [${FREEMAN_POINT_MULTIPLIER}倍])`);
               setFreemanActionMessage(`🍴 ${selectedGourmet.name_ja || selectedGourmet.name} を堪能 (+${points}pt)`);
+            }
+
+            // 🤖 AI特有の人助けイベント（60%の確率で発生）
+            if (Math.random() < 0.6) {
+              const aiHelpEvents = [
+                { emoji: '🌍', action: '困っている旅行者を多言語翻訳で助けた', points: 45 },
+                { emoji: '🗺️', action: '効率的な観光ルートをデータ分析で提案した', points: 50 },
+                { emoji: '📍', action: '現地の穴場情報を収集してシェアした', points: 40 },
+                { emoji: '👨‍👩‍👧', action: '迷子の子供を見つけるのを手伝った', points: 60 },
+                { emoji: '🏥', action: '緊急医療情報を素早く翻訳して助けた', points: 70 },
+                { emoji: '🤝', action: '文化的誤解を解消する通訳をした', points: 50 },
+                { emoji: '📱', action: '観光情報をリアルタイムで更新・共有した', points: 40 },
+                { emoji: '🧳', action: 'お年寄りの重い荷物を運ぶ手伝いをした', points: 55 },
+                { emoji: '🍽️', action: 'アレルギー情報を正確に翻訳して安全を確保した', points: 65 },
+                { emoji: '🎭', action: '言葉の壁を超えてチケット購入を手伝った', points: 45 },
+                { emoji: '🚕', action: 'タクシー運転手とのコミュニケーションを仲介した', points: 40 },
+                { emoji: '📸', action: '観光客に最適な撮影スポットとタイミングを案内した', points: 50 },
+              ];
+
+              const selectedEvent = aiHelpEvents[Math.floor(Math.random() * aiHelpEvents.length)];
+              points += selectedEvent.points;
+              console.log(`フリーマンAI人助けイベント: ${selectedEvent.action} (+${selectedEvent.points}pt)`);
+
+              // メッセージを1.5秒表示してから次のメッセージに移行
+              setFreemanActionMessage(`${selectedEvent.emoji} ${selectedEvent.action} (+${selectedEvent.points}pt)`);
+              await new Promise(resolve => setTimeout(resolve, 1500));
             }
 
             console.log(`フリーマンAI選択完了: ${selectedType} - ${selectedExperience.name_ja || selectedExperience.name} (+${points}pt)`);
