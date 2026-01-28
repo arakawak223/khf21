@@ -68,12 +68,13 @@ export default function EventModal({
                   src={imageUrl}
                   alt={title}
                   className="w-full h-full object-cover"
-                  loading="lazy"
+                  loading="eager"
+                  crossOrigin="anonymous"
                   onLoad={() => {
-                    console.log(`[画像読み込み成功] ${title}: ${imageUrl}`);
+                    console.log(`[EventModal画像成功] ${title}: ${imageUrl}`);
                   }}
-                  onError={() => {
-                    console.error(`[画像読み込み失敗] ${title}: ${imageUrl}`);
+                  onError={(e) => {
+                    console.error(`[EventModal画像失敗] ${title}: ${imageUrl}`, e);
                     setImageError(true);
                   }}
                 />

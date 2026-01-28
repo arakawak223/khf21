@@ -24,29 +24,30 @@ export default function AttractionEvent({
     if (!attraction.image_url && attraction.category === 'world_heritage') {
       // Unsplashのプレースホルダー画像を使用
       const fallbackUrl = getPlaceholderImage(attraction.name, 800, 600);
-      console.log(`[画像URL生成] ${attraction.name_ja}: ${fallbackUrl}`);
+      console.log(`[画像URL生成] ${attraction.name_ja} (${attraction.name}): ${fallbackUrl}`);
       setImageUrl(fallbackUrl);
       setImageLoadFailed(false); // リセット
 
-      // 画像の事前チェック（2秒以内に読み込めない場合はフォールバック）
+      // 画像の事前チェック（5秒以内に読み込めない場合はフォールバック）
       const img = new Image();
       const timeout = setTimeout(() => {
-        console.warn(`[画像タイムアウト] ${attraction.name_ja}: ${fallbackUrl}`);
+        console.warn(`[画像タイムアウト] ${attraction.name_ja}: ${fallbackUrl} - 5秒経過`);
         setImageLoadFailed(true);
-      }, 2000);
+      }, 5000);
 
       img.onload = () => {
         clearTimeout(timeout);
-        console.log(`[画像事前チェック成功] ${attraction.name_ja}`);
+        console.log(`[画像読み込み成功] ${attraction.name_ja}: ${fallbackUrl}`);
       };
 
       img.onerror = () => {
         clearTimeout(timeout);
-        console.error(`[画像事前チェック失敗] ${attraction.name_ja}: ${fallbackUrl}`);
+        console.error(`[画像読み込みエラー] ${attraction.name_ja}: ${fallbackUrl}`);
         setImageLoadFailed(true);
       };
 
       img.src = fallbackUrl;
+      console.log(`[画像読み込み開始] ${attraction.name_ja}: ${fallbackUrl}`);
     }
   }, [attraction]);
   const getCategoryLabel = (category: string) => {
