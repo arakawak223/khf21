@@ -1,6 +1,6 @@
 {
-  "name": "夢旅（ゆめたび）",
-  "short_name": "夢旅",
+  "name": "夢旅ライトフライヤー２１",
+  "short_name": "夢旅RF21",
   "description": "ルーレットを回して飛行機で世界を旅するすごろくゲーム",
   "start_url": "/",
   "display": "standalone",
