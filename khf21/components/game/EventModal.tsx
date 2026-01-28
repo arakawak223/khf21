@@ -47,7 +47,21 @@ export default function EventModal({
         <div className="p-4 space-y-2">
           {/* ヘッダー */}
           <div className="text-center space-y-1">
-            {emoji && !imageUrl && <div className="text-4xl">{emoji}</div>}
+            {/* 世界遺産で画像なし：大きな絵文字フォールバック */}
+            {emoji && !imageUrl && isWorldHeritage && (
+              <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 shadow-lg flex items-center justify-center border-2 border-amber-400`}>
+                <div className="text-center">
+                  <div className="text-8xl mb-3">{emoji}</div>
+                  <div className="bg-amber-500 text-white px-4 py-2 rounded-full text-base font-bold shadow-lg inline-flex items-center gap-2">
+                    <span className="text-xl">🏆</span>
+                    <span>UNESCO世界遺産</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* 通常の名所で画像なし：小さい絵文字 */}
+            {emoji && !imageUrl && !isWorldHeritage && <div className="text-4xl">{emoji}</div>}
+            {/* 画像あり：画像を表示 */}
             {imageUrl && !imageError && (
               <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 shadow-lg`}>
                 <img
@@ -74,13 +88,13 @@ export default function EventModal({
             )}
             {/* 画像エラー時のフォールバック */}
             {imageUrl && imageError && emoji && (
-              <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gradient-to-br from-amber-100 to-yellow-100 dark:from-amber-900 dark:to-yellow-900 shadow-lg flex items-center justify-center`}>
+              <div className={`w-full ${imageHeight} relative rounded-lg overflow-hidden bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 shadow-lg flex items-center justify-center ${isWorldHeritage ? 'border-2 border-amber-400' : ''}`}>
                 <div className="text-center">
-                  <div className="text-6xl mb-2">{emoji}</div>
+                  <div className={isWorldHeritage ? 'text-8xl mb-3' : 'text-6xl mb-2'}>{emoji}</div>
                   {isWorldHeritage && (
-                    <div className="bg-amber-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg inline-flex items-center gap-1">
-                      <span>🏆</span>
-                      <span>世界遺産</span>
+                    <div className="bg-amber-500 text-white px-4 py-2 rounded-full text-base font-bold shadow-lg inline-flex items-center gap-2">
+                      <span className="text-xl">🏆</span>
+                      <span>UNESCO世界遺産</span>
                     </div>
                   )}
                 </div>

@@ -17,6 +17,7 @@ export default function AttractionEvent({
   attraction,
 }: AttractionEventProps) {
   const [imageUrl, setImageUrl] = useState<string | undefined>(attraction.image_url || undefined);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
   // 画像URLがない場合は動的に生成
   useEffect(() => {
@@ -25,6 +26,27 @@ export default function AttractionEvent({
       const fallbackUrl = getPlaceholderImage(attraction.name, 800, 600);
       console.log(`[画像URL生成] ${attraction.name_ja}: ${fallbackUrl}`);
       setImageUrl(fallbackUrl);
+      setImageLoadFailed(false); // リセット
+
+      // 画像の事前チェック（2秒以内に読み込めない場合はフォールバック）
+      const img = new Image();
+      const timeout = setTimeout(() => {
+        console.warn(`[画像タイムアウト] ${attraction.name_ja}: ${fallbackUrl}`);
+        setImageLoadFailed(true);
+      }, 2000);
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        console.log(`[画像事前チェック成功] ${attraction.name_ja}`);
+      };
+
+      img.onerror = () => {
+        clearTimeout(timeout);
+        console.error(`[画像事前チェック失敗] ${attraction.name_ja}: ${fallbackUrl}`);
+        setImageLoadFailed(true);
+      };
+
+      img.src = fallbackUrl;
     }
   }, [attraction]);
   const getCategoryLabel = (category: string) => {
@@ -53,7 +75,7 @@ export default function AttractionEvent({
       onClose={onClose}
       title={attraction.name_ja}
       subtitle={`${attraction.city}, ${attraction.country}`}
-      imageUrl={imageUrl}
+      imageUrl={imageLoadFailed || !imageUrl ? undefined : imageUrl}
       emoji={attraction.category === 'world_heritage' ? '🏆' : '🏛️'}
       points={{ impressed: finalPoints }}
       isWorldHeritage={attraction.category === 'world_heritage'}
