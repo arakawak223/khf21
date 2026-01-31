@@ -322,6 +322,9 @@ export function generateDestinationCandidates(
 
     const occupation = occupiedCities.get(airport.id);
 
+    // 航空会社・便名を簡易的に割り当て（もじった名前）
+    const { airlineName, airlineCode, flightNumber } = assignAirlineInfo(currentAirport, airport);
+
     return {
       airport,
       distance: Math.round(distance),
@@ -331,8 +334,65 @@ export function generateDestinationCandidates(
       competitionLevel,
       isOccupied: !!occupation,
       occupiedBy: occupation?.playerId,
+      airlineName,
+      airlineCode,
+      flightNumber,
     };
   });
+}
+
+// 航空会社・便名を割り当てる関数（もじった名前）
+function assignAirlineInfo(
+  origin: Airport,
+  destination: Airport
+): { airlineName: string; airlineCode: string; flightNumber: string } {
+  // 航空会社リスト（もじった名前）
+  const airlines = [
+    { name: '日空航空', code: 'JAL', country: 'Japan', nameEn: 'Japan Air Sky' },
+    { name: '全日輸送', code: 'ANA', country: 'Japan', nameEn: 'All Nippon Transport' },
+    { name: 'ユナイテッドエア', code: 'UAL', country: 'USA', nameEn: 'United Air' },
+    { name: 'アメリカンエア', code: 'AAL', country: 'USA', nameEn: 'American Air' },
+    { name: 'ブリティッシュウイングス', code: 'BAW', country: 'UK', nameEn: 'British Wings' },
+    { name: 'フランスエア', code: 'AFR', country: 'France', nameEn: 'France Air' },
+    { name: 'ジャーマンウイングス', code: 'DLH', country: 'Germany', nameEn: 'German Wings' },
+    { name: 'ライオンエア', code: 'SIA', country: 'Singapore', nameEn: 'Lion Air' },
+    { name: 'エミレーツエア', code: 'EK', country: 'UAE', nameEn: 'Emirates Air' },
+    { name: 'オージーウイングス', code: 'QFA', country: 'Australia', nameEn: 'Aussie Wings' },
+  ];
+
+  // 出発地または目的地の国に基づいて航空会社を選択
+  let selectedAirline = airlines[Math.floor(Math.random() * airlines.length)];
+
+  // 日本発の場合はJAL/ANAを優先
+  if (origin.country === 'Japan' || destination.country === 'Japan') {
+    const japaneseAirlines = airlines.filter(a => a.country === 'Japan');
+    if (Math.random() > 0.3) {
+      selectedAirline = japaneseAirlines[Math.floor(Math.random() * japaneseAirlines.length)];
+    }
+  }
+  // アメリカ発着の場合はUAL/AALを優先
+  else if (origin.country === 'USA' || destination.country === 'USA') {
+    const usAirlines = airlines.filter(a => a.country === 'USA');
+    if (Math.random() > 0.4) {
+      selectedAirline = usAirlines[Math.floor(Math.random() * usAirlines.length)];
+    }
+  }
+  // ヨーロッパ発着の場合はヨーロッパ系を優先
+  else if (['UK', 'France', 'Germany'].includes(origin.country) || ['UK', 'France', 'Germany'].includes(destination.country)) {
+    const europeanAirlines = airlines.filter(a => ['UK', 'France', 'Germany'].includes(a.country));
+    if (Math.random() > 0.4 && europeanAirlines.length > 0) {
+      selectedAirline = europeanAirlines[Math.floor(Math.random() * europeanAirlines.length)];
+    }
+  }
+
+  // 便名を生成（航空会社コード + ランダムな数字）
+  const flightNumber = selectedAirline.code + String(Math.floor(Math.random() * 900) + 100).padStart(3, '0');
+
+  return {
+    airlineName: selectedAirline.name,
+    airlineCode: selectedAirline.code,
+    flightNumber,
+  };
 }
 
 // AIがランダムに選択権を持つプレイヤーを決定

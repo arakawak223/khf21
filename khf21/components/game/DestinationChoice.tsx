@@ -128,6 +128,24 @@ export default function DestinationChoice({
                   </p>
                 </div>
 
+                {/* 航空会社・便名情報 */}
+                {candidate.airlineName && candidate.flightNumber && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-3 border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-gray-600 dark:text-gray-300">✈️ 航空会社</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                        {candidate.airlineName}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-300">🎫 便名</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                        {candidate.airlineCode} {candidate.flightNumber}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* 距離情報 */}
                 <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-3">
                   <div className="flex items-center justify-between text-sm mb-2">

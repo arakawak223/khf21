@@ -74,6 +74,9 @@ export interface DestinationCandidate {
   competitionLevel: 'low' | 'medium' | 'high'; // 他プレイヤーとの競合度
   isOccupied?: boolean; // 他プレイヤーが占有中か
   occupiedBy?: string; // 占有プレイヤーID
+  airlineName?: string; // 航空会社名（日本語）
+  airlineCode?: string; // 航空会社コード
+  flightNumber?: string; // 便名
 }
 
 export interface DestinationSpecialEffect {

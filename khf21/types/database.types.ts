@@ -94,6 +94,7 @@ export interface Database {
           distance_km: number
           flight_time_hours: number | null
           board_spaces: number
+          flight_number: string | null
           created_at: string
           updated_at: string
         }
@@ -104,6 +105,7 @@ export interface Database {
           destination_airport_id?: string | null
           distance_km: number
           flight_time_hours?: number | null
+          flight_number?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -114,6 +116,7 @@ export interface Database {
           destination_airport_id?: string | null
           distance_km?: number
           flight_time_hours?: number | null
+          flight_number?: string | null
           created_at?: string
           updated_at?: string
         }

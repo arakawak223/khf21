@@ -1344,15 +1344,20 @@ function GameContent() {
           return p;
         });
 
-        // currentTurnPlayerも更新
-        const updatedCurrentPlayer = updatedPlayers.find(p => p.id === currentTurnPlayer.id);
-        if (updatedCurrentPlayer) {
-          setCurrentTurnPlayer(updatedCurrentPlayer);
-          // グローバル状態も更新
-          setCurrentSpaceNumber(updatedCurrentPlayer.current_space_number);
-        }
-
         return updatedPlayers;
+      });
+
+      // currentTurnPlayerとグローバル状態を更新（setPlayersの外で実行）
+      setPlayers((prevPlayers) => {
+        const updatedCurrentPlayer = prevPlayers.find(p => p.id === currentTurnPlayer.id);
+        if (updatedCurrentPlayer) {
+          // 次のレンダリングサイクルで更新
+          Promise.resolve().then(() => {
+            setCurrentTurnPlayer(updatedCurrentPlayer);
+            setCurrentSpaceNumber(updatedCurrentPlayer.current_space_number);
+          });
+        }
+        return prevPlayers;
       });
     }
 
