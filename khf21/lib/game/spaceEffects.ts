@@ -165,27 +165,82 @@ function executeEventSpace(space: RouteSpace, player: GamePlayer): SpaceEffectRe
 // 第2段階: トラップ・ワープ・セーフ（未実装）
 // ===============================
 
+/**
+ * トラップマス: ポイント減少とマス後退
+ */
 function executeTrapSpace(space: RouteSpace, player: GamePlayer): SpaceEffectResult {
-  // TODO: 第2段階で実装
+  const effect = space.effect || {};
+  const penaltyPoints = effect.penaltyPoints || 30; // デフォルト30pt減少
+  const moveBack = effect.moveBack || 2; // デフォルト2マス後退
+
+  // ポイント減少（0未満にはならない）
+  const actualPenalty = Math.min(penaltyPoints, player.total_points);
+
+  const message = `💣 トラップマス！\nポイント-${actualPenalty}pt\n${moveBack}マス後退！`;
+
+  console.log(`[TrapSpace] ${player.player_nickname} がポイント${actualPenalty}pt減少、${moveBack}マス後退`);
+
   return {
     success: true,
-    message: '💣 トラップマス（未実装）',
+    message,
+    pointsGained: {
+      impressed: -actualPenalty, // マイナスポイント
+      giver: 0,
+    },
+    updatedPlayer: {
+      ...player,
+      current_space_number: Math.max(0, player.current_space_number - moveBack),
+    },
   };
 }
 
+/**
+ * ワープマス: マス前進
+ */
 function executeWarpSpace(space: RouteSpace, player: GamePlayer): SpaceEffectResult {
-  // TODO: 第2段階で実装
+  const effect = space.effect || {};
+  const warpForward = effect.warpForward || 3; // デフォルト3マス前進
+
+  const message = `🌀 ワープマス！\n${warpForward}マス前進！`;
+
+  console.log(`[WarpSpace] ${player.player_nickname} が${warpForward}マス前進`);
+
+  // マス前進（最大マス数は超えない）
+  const maxSpaces = player.route_spaces?.length || 0;
+  const newSpaceNumber = Math.min(player.current_space_number + warpForward, maxSpaces);
+
   return {
     success: true,
-    message: '🌀 ワープマス（未実装）',
+    message,
+    updatedPlayer: {
+      ...player,
+      current_space_number: newSpaceNumber,
+    },
   };
 }
 
+/**
+ * セーフマス: 攻撃カード無効エリア
+ */
 function executeSafeSpace(space: RouteSpace, player: GamePlayer): SpaceEffectResult {
-  // TODO: 第2段階で実装
+  const message = `🛡️ セーフマス！\n攻撃カードから保護されています！`;
+
+  console.log(`[SafeSpace] ${player.player_nickname} がセーフマスに到達`);
+
+  // セーフゾーン効果を付与（1ターンの間、攻撃カード無効）
+  const safeEffect = {
+    effectType: 'safe_zone',
+    duration: 1,
+    source: 'safe_space',
+  };
+
   return {
     success: true,
-    message: '🛡️ セーフマス（未実装）',
+    message,
+    updatedPlayer: {
+      ...player,
+      active_effects: [...(player.active_effects || []), safeEffect],
+    },
   };
 }
 

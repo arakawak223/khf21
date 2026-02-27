@@ -23,16 +23,16 @@ const SPACE_TYPE_CONFIG: Record<SpaceType, { icon: string; colorClass: string; n
 // ===============================
 
 /**
- * マスタイプの配置パターンを生成（第1段階: カード・ボーナス・イベント）
+ * マスタイプの配置パターンを生成（第2段階: 全6種類のマス）
  *
- * 配置ルール:
- * - 1-2マス目: 通常
- * - 3マス目: カード
- * - 4-5マス目: 通常
- * - 6マス目: ボーナス
- * - 7-8マス目: 通常
- * - 9マス目: イベント
- * - 以降、3マスごとに特殊マスを配置
+ * 配置ルール（12マス周期）:
+ * - 3マス目: カードマス
+ * - 4マス目: トラップマス（新規）
+ * - 6マス目: ボーナスマス
+ * - 8マス目: ワープマス（新規）
+ * - 9マス目: イベントマス
+ * - 11マス目: セーフマス（新規）
+ * - 残り: 通常マス
  */
 export function generateSpacePattern(totalSpaces: number): SpaceConfig[] {
   const configs: SpaceConfig[] = [];
@@ -41,16 +41,22 @@ export function generateSpacePattern(totalSpaces: number): SpaceConfig[] {
     let type: SpaceType = 'normal';
     let effect: SpaceEffect | undefined;
 
-    // 配置パターン（9マス周期）
-    const position = i % 9;
+    // 配置パターン（12マス周期）
+    const position = i % 12;
 
     if (position === 3) {
       // 3マス目ごと: カードマス
       type = 'card';
       effect = {
         cardCount: 1,
-        // レアリティはランダム（60% コモン、30% レア、10% 超レア）
         cardRarity: getRandomCardRarity(),
+      };
+    } else if (position === 4) {
+      // 4マス目ごと: トラップマス
+      type = 'trap';
+      effect = {
+        penaltyPoints: getRandomPenaltyPoints(i, totalSpaces),
+        moveBack: Math.random() < 0.5 ? 1 : 2, // 50%で1マス、50%で2マス後退
       };
     } else if (position === 6) {
       // 6マス目ごと: ボーナスマス
@@ -59,12 +65,22 @@ export function generateSpacePattern(totalSpaces: number): SpaceConfig[] {
         bonusPoints: getRandomBonusPoints(i, totalSpaces),
         pointsType: Math.random() < 0.7 ? 'impressed' : 'giver',
       };
-    } else if (position === 0) {
+    } else if (position === 8) {
+      // 8マス目ごと: ワープマス
+      type = 'warp';
+      effect = {
+        warpForward: Math.random() < 0.5 ? 2 : 3, // 50%で2マス、50%で3マス前進
+      };
+    } else if (position === 9) {
       // 9マス目ごと: イベントマス
       type = 'event';
       effect = {
         forceEventType: getRandomEventType(),
       };
+    } else if (position === 11) {
+      // 11マス目ごと: セーフマス
+      type = 'safe';
+      effect = {}; // セーフマスは特別な効果パラメータ不要
     }
 
     // 最終マス（到着地点）は必ずボーナス
@@ -133,6 +149,25 @@ function getRandomBonusPoints(currentSpace: number, totalSpaces: number): number
   } else {
     // 後半: 70-100pt
     return 70 + Math.floor(Math.random() * 31);
+  }
+}
+
+/**
+ * ランダムなペナルティポイントを取得
+ * 後半のマスほど高いペナルティ
+ */
+function getRandomPenaltyPoints(currentSpace: number, totalSpaces: number): number {
+  const progress = currentSpace / totalSpaces;
+
+  if (progress < 0.33) {
+    // 前半: 10-20pt
+    return 10 + Math.floor(Math.random() * 11);
+  } else if (progress < 0.66) {
+    // 中盤: 20-35pt
+    return 20 + Math.floor(Math.random() * 16);
+  } else {
+    // 後半: 35-50pt
+    return 35 + Math.floor(Math.random() * 16);
   }
 }
 

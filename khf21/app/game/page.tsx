@@ -1069,6 +1069,23 @@ function GameContent() {
             });
           }
 
+          // プレイヤー全体の状態更新（updatedPlayerがある場合）
+          if (effectResult.updatedPlayer) {
+            setPlayers((prevPlayers) => {
+              return prevPlayers.map((p) =>
+                p.id === currentTurnPlayer.id ? effectResult.updatedPlayer! : p
+              );
+            });
+            // currentTurnPlayerも更新
+            setCurrentTurnPlayer(effectResult.updatedPlayer);
+
+            // マス位置が変わった場合はグローバル状態も更新
+            if (effectResult.updatedPlayer.current_space_number !== currentTurnPlayer.current_space_number) {
+              setCurrentSpaceNumber(effectResult.updatedPlayer.current_space_number);
+              console.log(`マス位置を更新: ${currentTurnPlayer.current_space_number} → ${effectResult.updatedPlayer.current_space_number}`);
+            }
+          }
+
           // イベントマスの場合は、イベントを強制発生（後で実装）
           // if (effectResult.forceEvent) {
           //   // TODO: イベント強制発生の実装
