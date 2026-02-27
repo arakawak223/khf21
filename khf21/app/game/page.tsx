@@ -408,12 +408,9 @@ function GameContent() {
 
       console.log('Players created:', allPlayers);
 
-      // プレイヤーにカードとミッションを初期化（マルチプレイヤー時のみ）
-      let finalPlayers = allPlayers;
-      if (multiplayerMode) {
-        finalPlayers = initializeAllPlayersStrategy(allPlayers);
-        console.log('Players initialized with cards and missions:', finalPlayers);
-      }
+      // プレイヤーにカードとミッションを初期化（全モード対応）
+      const finalPlayers = initializeAllPlayersStrategy(allPlayers);
+      console.log('Players initialized with cards and missions:', finalPlayers);
 
       // GameContextに設定
       setPlayers(finalPlayers);
