@@ -647,13 +647,14 @@ function GameContent() {
 
     // グローバル状態を更新
     if (currentPlayerRoute) {
+      const route: Array<{ lat: number; lng: number; spaceNumber: number }> = currentPlayerRoute;
       // マス配置パターンを生成
-      const totalSpaces = currentPlayerRoute.length;
+      const totalSpaces = route.length;
       const configs = generateSpacePattern(totalSpaces);
       setSpaceConfigs(configs);
       console.log(`マス配置パターンを生成: ${totalSpaces}マス, 特殊マス${configs.filter(c => c.type !== 'normal').length}個`);
 
-      setRouteSpaces(currentPlayerRoute);
+      setRouteSpaces(route);
       setCurrentSpaceNumber(0);
     }
 
