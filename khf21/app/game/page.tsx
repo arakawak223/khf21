@@ -18,6 +18,7 @@ import MissionPanel from '@/components/game/MissionPanel';
 import CardTargetSelector from '@/components/game/CardTargetSelector';
 import CardEffectNotification from '@/components/game/CardEffectNotification';
 import CardObtainedAnimation from '@/components/game/CardObtainedAnimation';
+import SpaceEffectNotification from '@/components/game/SpaceEffectNotification';
 import MultiplayerFlow from '@/components/game/multiplayer/MultiplayerFlow';
 import PointsDisplay from '@/components/game/PointsDisplay';
 import GameProgress from '@/components/game/GameProgress';
@@ -64,8 +65,10 @@ import { initializeAllPlayersStrategy } from '@/lib/game/playerInitializer';
 import { generateDestinationCandidates, selectRandomChooser, generateRandomGroups } from '@/lib/game/destinationSelector';
 import { updateCityOccupation, detectOvertake, executeCardEffect, decreaseActiveEffectsDuration, isFrozen, hasDoubleMove, hasDoublePoints, removeActiveEffect, updateMissionProgress } from '@/lib/game/strategyLogic';
 import { getCardById, drawRandomPlayerCards } from '@/lib/game/strategyData';
-import type { DestinationCandidate, CityOccupation, AirportGroup, GroupColor } from '@/types/strategy.types';
+import type { DestinationCandidate, CityOccupation, AirportGroup, GroupColor, SpaceConfig, RouteSpace, SpaceType } from '@/types/strategy.types';
 import GroupSelector from '@/components/game/GroupSelector';
+import { generateSpacePattern, applySpaceTypesToRoute } from '@/lib/game/spaceManager';
+import { executeSpaceEffect, type SpaceEffectResult } from '@/lib/game/spaceEffects';
 
 // フリーマンのポイントバランス調整用倍率
 const FREEMAN_POINT_MULTIPLIER = 1.2; // フリーマンの基本ポイントを1.2倍（人助けイベントと合わせてバランス調整）
@@ -170,6 +173,14 @@ function GameContent() {
   const [needsTeleportSelection, setNeedsTeleportSelection] = useState(false);
   const [firstDiceResult, setFirstDiceResult] = useState<number | null>(null);
   const [needsSecondDice, setNeedsSecondDice] = useState(false);
+
+  // マスシステム関連
+  const [spaceConfigs, setSpaceConfigs] = useState<SpaceConfig[]>([]);
+  const [showSpaceEffect, setShowSpaceEffect] = useState(false);
+  const [currentSpaceEffect, setCurrentSpaceEffect] = useState<{
+    type: SpaceType;
+    message: string;
+  } | null>(null);
 
   // 空港データ取得
   useEffect(() => {
@@ -636,6 +647,12 @@ function GameContent() {
 
     // グローバル状態を更新
     if (currentPlayerRoute) {
+      // マス配置パターンを生成
+      const totalSpaces = currentPlayerRoute.length;
+      const configs = generateSpacePattern(totalSpaces);
+      setSpaceConfigs(configs);
+      console.log(`マス配置パターンを生成: ${totalSpaces}マス, 特殊マス${configs.filter(c => c.type !== 'normal').length}個`);
+
       setRouteSpaces(currentPlayerRoute);
       setCurrentSpaceNumber(0);
     }
@@ -996,6 +1013,66 @@ function GameContent() {
           }
           return updatedPlayers;
         });
+      }
+
+      // マス効果をチェック
+      const currentConfig = spaceConfigs.find(c => c.spaceNumber === newSpaceNumber);
+      if (currentConfig && currentConfig.type !== 'normal') {
+        console.log(`[マス効果] ${currentConfig.type}マスに止まりました`);
+
+        // マス効果を実行
+        const space: RouteSpace = {
+          lat: routeSpaces[newSpaceNumber - 1]?.lat || 0,
+          lng: routeSpaces[newSpaceNumber - 1]?.lng || 0,
+          spaceNumber: newSpaceNumber,
+          type: currentConfig.type,
+          effect: currentConfig.effect,
+        };
+
+        const effectResult = await executeSpaceEffect(space, currentTurnPlayer);
+
+        if (effectResult.success) {
+          // マス効果の通知を表示
+          setCurrentSpaceEffect({
+            type: currentConfig.type,
+            message: effectResult.message,
+          });
+          setShowSpaceEffect(true);
+
+          // プレイヤー状態を更新
+          if (effectResult.newCards && effectResult.newCards.length > 0) {
+            setPlayers((prevPlayers) => {
+              return prevPlayers.map((p) =>
+                p.id === currentTurnPlayer.id
+                  ? {
+                      ...p,
+                      cards: [...(p.cards || []), ...effectResult.newCards!],
+                    }
+                  : p
+              );
+            });
+          }
+
+          if (effectResult.pointsGained) {
+            setPlayers((prevPlayers) => {
+              return prevPlayers.map((p) =>
+                p.id === currentTurnPlayer.id
+                  ? {
+                      ...p,
+                      impressed_points: p.impressed_points + effectResult.pointsGained!.impressed,
+                      giver_points: p.giver_points + effectResult.pointsGained!.giver,
+                      total_points: p.total_points + effectResult.pointsGained!.impressed + effectResult.pointsGained!.giver,
+                    }
+                  : p
+              );
+            });
+          }
+
+          // イベントマスの場合は、イベントを強制発生（後で実装）
+          // if (effectResult.forceEvent) {
+          //   // TODO: イベント強制発生の実装
+          // }
+        }
       }
 
       // 移動中のイベントを生成
@@ -3236,6 +3313,18 @@ function GameContent() {
           />
         ) : null;
       })()}
+
+      {/* マス効果通知 */}
+      {showSpaceEffect && currentSpaceEffect && (
+        <SpaceEffectNotification
+          spaceType={currentSpaceEffect.type}
+          message={currentSpaceEffect.message}
+          onClose={() => {
+            setShowSpaceEffect(false);
+            setCurrentSpaceEffect(null);
+          }}
+        />
+      )}
 
       {/* 到着ポイント内訳表示 */}
       {showArrivalBreakdown && arrivalBreakdown && (

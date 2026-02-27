@@ -185,3 +185,68 @@ export interface PlayerStatistics {
   cardsUsed: number; // カード使用回数
   missionsCompleted: number; // ミッション達成数
 }
+
+// ===============================
+// マスタイプシステム（段階的実装）
+// ===============================
+
+// マスの種類
+export type SpaceType =
+  | 'normal'          // 通常マス（何も起こらない）
+  | 'card'            // カードマス（カード確定獲得）
+  | 'bonus'           // ボーナスマス（ポイント獲得）
+  | 'event'           // イベントマス（イベント確定発生）
+  | 'trap'            // トラップマス（マイナス効果） - 第2段階
+  | 'warp'            // ワープマス（マス移動） - 第2段階
+  | 'safe'            // セーフマス（攻撃カード無効） - 第2段階
+  | 'lucky'           // ラッキーマス（良いことが起こる） - 第3段階
+  | 'mission';        // ミッションマス（ミッション進捗） - 第3段階
+
+// マスの効果定義
+export interface SpaceEffect {
+  // カードマス
+  cardCount?: number;           // 獲得カード枚数（デフォルト: 1）
+  cardRarity?: 1 | 2 | 3;      // レアリティ指定
+
+  // ボーナスマス
+  bonusPoints?: number;         // ボーナスポイント
+  pointsType?: 'impressed' | 'giver'; // ポイントタイプ
+
+  // イベントマス
+  forceEventType?: 'star' | 'attraction' | 'gourmet' | 'art';
+
+  // トラップマス（第2段階）
+  penaltyPoints?: number;       // マイナスポイント
+  moveBack?: number;            // 後退マス数
+
+  // ワープマス（第2段階）
+  warpForward?: number;         // 前進マス数
+
+  // ラッキーマス（第3段階）
+  luckyOptions?: Array<{
+    type: 'card' | 'points' | 'warp';
+    value: number;
+  }>;
+
+  // ミッションマス（第3段階）
+  missionBoost?: number;        // ミッション進捗ブースト倍率
+}
+
+// マスの配置設定
+export interface SpaceConfig {
+  spaceNumber: number;
+  type: SpaceType;
+  effect?: SpaceEffect;
+  icon?: string;                // 表示用アイコン
+  colorClass?: string;          // 表示用カラークラス
+}
+
+// ルートマス情報（既存のrouteSpacesを拡張）
+export interface RouteSpace {
+  lat: number;
+  lng: number;
+  spaceNumber: number;
+  type?: SpaceType;             // マスタイプ
+  effect?: SpaceEffect;         // マス効果
+  eventType?: string;           // イベント記録用（既存互換）
+}
