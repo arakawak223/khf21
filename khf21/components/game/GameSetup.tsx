@@ -105,14 +105,15 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
               訪問する目的地の数と出発地を選択してください
             </p>
-            <Button
+            {/* カード・ミッション機能は一時停止中 */}
+            {/* <Button
               variant="outline"
               size="sm"
               onClick={handleGuideOpen}
               className="text-purple-600 border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
             >
               🎯 ミッション&カードガイドを見る
-            </Button>
+            </Button> */}
           </div>
 
           {/* ゲームモード選択 */}
@@ -168,7 +169,7 @@ export default function GameSetup({ airports, onStart }: GameSetupProps) {
               <p className="text-xs text-blue-800 dark:text-blue-200">
                 <span className="font-bold">💡 モード説明</span><br />
                 {gameMode === 'single' ? (
-                  <>・Dフリーマン（AI）との対戦<br />・追い越すとペナルティ、追い越されるとSフリーマン（サポート型）に変化</>
+                  <>・Dフリーマン（AI）との対戦</>
                 ) : (
                   <>・他の人間プレイヤーとリアルタイムで対戦<br />・ルームコードで友達を招待できます</>
                 )}

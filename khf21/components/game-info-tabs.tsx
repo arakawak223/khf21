@@ -38,7 +38,7 @@ export function GameInfoTabs() {
             <p className="flex items-start gap-2">
               <span className="text-2xl">✨</span>
               <span>
-                世界中の名所を訪れ、スターと出会い、感動体験を積み重ねよう
+                世界の名所を訪れ、スターと出会い、感動体験を味わおう
               </span>
             </p>
             <p className="flex items-start gap-2">
@@ -50,7 +50,7 @@ export function GameInfoTabs() {
             <p className="flex items-start gap-2">
               <span className="text-2xl">🌍</span>
               <span>
-                世界100空港を巡る壮大な旅。期間は1週間から1年まで選択可能
+                世界の空港を巡る壮大な旅。目的地３か所の旅～目的地１０か所の旅を選択可能
               </span>
             </p>
           </div>

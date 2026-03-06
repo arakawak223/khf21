@@ -13,11 +13,12 @@ import ArrivalSelection from '@/components/game/ArrivalSelection';
 import WorldMap from '@/components/game/WorldMap';
 import ResizableMapContainer from '@/components/game/ResizableMapContainer';
 import ResizablePanels from '@/components/game/ResizablePanels';
-import CardHand from '@/components/game/CardHand';
-import MissionPanel from '@/components/game/MissionPanel';
-import CardTargetSelector from '@/components/game/CardTargetSelector';
-import CardEffectNotification from '@/components/game/CardEffectNotification';
-import CardObtainedAnimation from '@/components/game/CardObtainedAnimation';
+// カード・ミッション機能は一時停止中
+// import CardHand from '@/components/game/CardHand';
+// import MissionPanel from '@/components/game/MissionPanel';
+// import CardTargetSelector from '@/components/game/CardTargetSelector';
+// import CardEffectNotification from '@/components/game/CardEffectNotification';
+// import CardObtainedAnimation from '@/components/game/CardObtainedAnimation';
 import SpaceEffectNotification from '@/components/game/SpaceEffectNotification';
 import MultiplayerFlow from '@/components/game/multiplayer/MultiplayerFlow';
 import PointsDisplay from '@/components/game/PointsDisplay';
@@ -3282,23 +3283,23 @@ function GameContent() {
         </div>
       )}
 
-      {/* カード手札表示 */}
-      {currentTurnPlayer && currentTurnPlayer.cards && (
+      {/* カード手札表示 - 一時停止中 */}
+      {/* {currentTurnPlayer && currentTurnPlayer.cards && (
         <CardHand
           playerCards={currentTurnPlayer.cards}
           isMyTurn={currentTurnPlayer.player_type === 'human'}
-          canUseCards={screenState === 'map'} // 地図画面でのみ使用可能
+          canUseCards={screenState === 'map'}
           onUseCard={handleUseCard}
         />
-      )}
+      )} */}
 
-      {/* ミッション表示 */}
-      {currentTurnPlayer && currentTurnPlayer.missions && (
+      {/* ミッション表示 - 一時停止中 */}
+      {/* {currentTurnPlayer && currentTurnPlayer.missions && (
         <MissionPanel playerMissions={currentTurnPlayer.missions} />
-      )}
+      )} */}
 
-      {/* カード対象選択 */}
-      {showCardTargetSelector && selectedCardToUse && (
+      {/* カード対象選択 - 一時停止中 */}
+      {/* {showCardTargetSelector && selectedCardToUse && (
         <CardTargetSelector
           players={players}
           currentPlayerId={currentTurnPlayer?.id || ''}
@@ -3308,18 +3309,18 @@ function GameContent() {
             setSelectedCardToUse(null);
           }}
         />
-      )}
+      )} */}
 
-      {/* カード効果通知 */}
-      {showCardEffect && cardEffectMessage && (
+      {/* カード効果通知 - 一時停止中 */}
+      {/* {showCardEffect && cardEffectMessage && (
         <CardEffectNotification
           message={cardEffectMessage}
           onClose={handleCloseCardEffect}
         />
-      )}
+      )} */}
 
-      {/* カード獲得アニメーション */}
-      {showCardObtained && obtainedCards.length > 0 && (() => {
+      {/* カード獲得アニメーション - 一時停止中 */}
+      {/* {showCardObtained && obtainedCards.length > 0 && (() => {
         const card = getCardById(obtainedCards[0].cardId);
         return card ? (
           <CardObtainedAnimation
@@ -3330,7 +3331,7 @@ function GameContent() {
             }}
           />
         ) : null;
-      })()}
+      })()} */}
 
       {/* マス効果通知 */}
       {showSpaceEffect && currentSpaceEffect && (
