@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -52,6 +53,7 @@ export default function RootLayout({
         >
           {children}
         </ThemeProvider>
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

@@ -1,27 +1,90 @@
 {
-  "name": "夢旅ライトフライヤー２１",
-  "short_name": "夢旅RF21",
-  "description": "自転車屋ライト兄弟が二輪車の操縦技術を応用し、世界初の飛行に成功。逆境から生まれた革新の系譜を継ぎ、21世紀の空で世界を旅する冒険すごろくゲーム。",
+  "name": "夢旅 ライトフライヤー２１",
+  "short_name": "RF21",
+  "description": "世界の空港を巡る壮大な旅。スターと出会い、感動体験を積み重ねる冒険すごろくゲーム。",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#1e1b4b",
   "theme_color": "#0070f3",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "lang": "ja",
+  "dir": "ltr",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
-      "src": "/icon-192x192.png",
-      "sizes": "192x192",
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["games", "entertainment"],
-  "lang": "ja",
-  "dir": "ltr"
+  "shortcuts": [
+    {
+      "name": "ゲームを始める",
+      "short_name": "プレイ",
+      "description": "すぐにゲームを開始する",
+      "url": "/game",
+      "icons": [
+        {
+          "src": "/icons/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
 }
